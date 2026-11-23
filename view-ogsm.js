@@ -31,8 +31,31 @@
 
     const q = store.state.searchQuery;
     const goals = store.projectGoals();
+    const allLogs = store.projectLogs();
     const summary = store.projectSummary();
     const projectRootFiles = store.projectFiles().filter((f) => !f.measureId);
+
+    function renderRelatedLogsRow(logs, label) {
+      if (!logs || !logs.length) return '';
+      return `
+        <div class="related-logs-strip" onclick="event.stopPropagation()">
+          <span class="related-logs-label">${esc(label || '相關日誌')}</span>
+          <div class="related-logs-list">
+            ${logs
+              .map(
+                (l) => `
+                <button type="button" class="log-title-pill" data-jump-log="${esc(l.id)}"
+                        title="點擊前往工作日誌：${esc(l.date)} ${esc(l.title || '工作紀錄')}">
+                  <span class="log-pill-date">${esc(store.shortDate(l.date))}</span>
+                  <span class="log-pill-title">${esc(l.title || `${l.date} 工作紀錄`)}</span>
+                </button>
+              `
+              )
+              .join('')}
+          </div>
+        </div>
+      `;
+    }
 
     const goalsHtml = goals
       .map((goal) => {
@@ -65,41 +88,51 @@
                     const checks = store.measureChecklists(m.id);
                     const doneChecks = checks.filter((c) => c.checked).length;
                     const files = store.measureFiles(m.id);
+                    const measureLogs = allLogs.filter(
+                      (l) => l.measureId === m.id || (l.ogsmType === 'measure' && l.ogsmId === m.id)
+                    );
                     const fillCls = status.key === 'done' ? 'green' : status.key === 'overdue' ? 'red' : '';
                     return `
-                      <div class="measure-row" data-open-measure="${esc(m.id)}">
-                        <div class="measure-name">
-                          <span class="letter-badge m" style="width:20px;height:20px;font-size:10.5px;">M</span>
-                          <span class="measure-name-text" title="${esc(m.title)}">
-                            ${m.isMilestone ? '◆ ' : ''}${esc(m.title)}
-                          </span>
-                          ${status.key === 'overdue' ? '<span class="pill red">逾期</span>' : ''}
-                        </div>
-                        <div class="measure-dates">
-                          ${esc(store.shortDate(m.startDate))} – ${esc(store.shortDate(m.endDate))}
-                        </div>
-                        <div class="measure-prog">
-                          <div class="progress-track" style="width:56px;">
-                            <div class="progress-fill ${fillCls}" style="width:${Number(m.progress) || 0}%"></div>
+                      <div class="measure-item-wrap">
+                        <div class="measure-row" data-open-measure="${esc(m.id)}">
+                          <div class="measure-name">
+                            <span class="letter-badge m" style="width:20px;height:20px;font-size:10.5px;">M</span>
+                            <span class="measure-name-text" title="${esc(m.title)}">
+                              ${m.isMilestone ? '◆ ' : ''}${esc(m.title)}
+                            </span>
+                            ${status.key === 'overdue' ? '<span class="pill red">逾期</span>' : ''}
                           </div>
-                          <span>${Number(m.progress) || 0}%</span>
+                          <div class="measure-dates">
+                            ${esc(store.shortDate(m.startDate))} – ${esc(store.shortDate(m.endDate))}
+                          </div>
+                          <div class="measure-prog">
+                            <div class="progress-track" style="width:56px;">
+                              <div class="progress-fill ${fillCls}" style="width:${Number(m.progress) || 0}%"></div>
+                            </div>
+                            <span>${Number(m.progress) || 0}%</span>
+                          </div>
+                          <div class="measure-files-inline">
+                            ${
+                              files.length
+                                ? files.slice(0, 2).map((f) => store.renderDriveChip(f)).join('') +
+                                  (files.length > 2 ? `<span class="muted-text">+${files.length - 2}</span>` : '')
+                                : '<span class="muted-text" style="font-size:11.5px;">尚無檔案</span>'
+                            }
+                          </div>
+                          <div class="measure-check-count" title="檢核清單完成數">
+                            ${checks.length ? `✓ ${doneChecks}/${checks.length}` : '—'}
+                          </div>
                         </div>
-                        <div class="measure-files-inline">
-                          ${
-                            files.length
-                              ? files.slice(0, 2).map((f) => store.renderDriveChip(f)).join('') +
-                                (files.length > 2 ? `<span class="muted-text">+${files.length - 2}</span>` : '')
-                              : '<span class="muted-text" style="font-size:11.5px;">尚無檔案</span>'
-                          }
-                        </div>
-                        <div class="measure-check-count" title="檢核清單完成數">
-                          ${checks.length ? `✓ ${doneChecks}/${checks.length}` : '—'}
-                        </div>
+                        ${renderRelatedLogsRow(measureLogs, '✎ 日誌')}
                       </div>
                     `;
                   })
                   .join('')
               : `<div class="muted-text" style="padding:8px 6px;font-size:12px;">尚無行動項目 M，點擊右上角「＋ 行動 M」開始排程。</div>`;
+
+            const stratLogs = allLogs.filter(
+              (l) => l.ogsmType === 'strategy' && l.ogsmId === strat.id
+            );
 
             return `
               <div class="strategy-block">
@@ -116,6 +149,7 @@
                     <button class="btn-icon" data-edit-strategy="${esc(strat.id)}" title="編輯策略">✎</button>
                   </div>
                 </div>
+                ${renderRelatedLogsRow(stratLogs, '✎ 策略相關日誌')}
                 <div class="measure-rows">${measuresHtml}</div>
               </div>
             `;
@@ -126,6 +160,10 @@
         if (q && !strategiesHtml && !matchesSearch(goal.title, q)) {
           return '';
         }
+
+        const goalLogs = allLogs.filter(
+          (l) => l.ogsmType === 'goal' && l.ogsmId === goal.id
+        );
 
         return `
           <article class="goal-card">
@@ -153,6 +191,7 @@
                 <button class="btn-icon" data-edit-goal="${esc(goal.id)}" title="編輯目標">✎</button>
               </div>
             </div>
+            ${goalLogs.length ? `<div style="padding:10px 18px 0;">${renderRelatedLogsRow(goalLogs, '✎ 目標相關日誌')}</div>` : ''}
             <div class="strategy-list">
               ${
                 strategiesHtml ||
@@ -252,6 +291,13 @@
 
     container.querySelectorAll('[data-open-measure]').forEach((el) => {
       el.addEventListener('click', () => OGSM.drawer.open(el.dataset.openMeasure));
+    });
+
+    container.querySelectorAll('[data-jump-log]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        OGSM.views.logs.openLogById(el.dataset.jumpLog);
+      });
     });
   }
 

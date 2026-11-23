@@ -74,22 +74,35 @@
                       .map((c) => {
                         const chkLogs = logs.filter((l) => (l.checklistIds || []).includes(c.id));
                         return `
-                        <div class="checklist-row ${c.checked ? 'done' : ''}">
-                          <button class="checkbox-round ${c.checked ? 'checked' : ''}"
-                                  data-toggle-check="${esc(c.id)}"
-                                  aria-label="勾選檢核項">${c.checked ? '✓' : ''}</button>
-                          <span style="flex:1;">${esc(c.text)}</span>
+                        <div class="checklist-item-wrap">
+                          <div class="checklist-row ${c.checked ? 'done' : ''}">
+                            <button class="checkbox-round ${c.checked ? 'checked' : ''}"
+                                    data-toggle-check="${esc(c.id)}"
+                                    aria-label="勾選檢核項">${c.checked ? '✓' : ''}</button>
+                            <span style="flex:1;">${esc(c.text)}</span>
+                            <button class="btn-icon danger" style="width:24px;height:24px;font-size:12px;"
+                                    data-del-check="${esc(c.id)}" title="刪除">✕</button>
+                          </div>
                           ${
                             chkLogs.length
-                              ? `<button type="button" class="todo-link-tag" style="border:none;"
-                                         data-jump-log="${esc(chkLogs[0].id)}"
-                                         title="查看關聯工作日誌（${esc(chkLogs[0].date)}）">
-                                  ✎ ${chkLogs.length > 1 ? `${chkLogs.length} 筆日誌` : esc(store.shortDate(chkLogs[0].date))}
-                                </button>`
+                              ? `<div class="related-logs-strip compact">
+                                  <span class="related-logs-label">✎ 日誌</span>
+                                  <div class="related-logs-list">
+                                    ${chkLogs
+                                      .map(
+                                        (l) => `
+                                        <button type="button" class="log-title-pill" data-jump-log="${esc(l.id)}"
+                                                title="點擊前往工作日誌：${esc(l.date)} ${esc(l.title || '工作紀錄')}">
+                                          <span class="log-pill-date">${esc(store.shortDate(l.date))}</span>
+                                          <span class="log-pill-title">${esc(l.title || `${l.date} 工作紀錄`)}</span>
+                                        </button>
+                                      `
+                                      )
+                                      .join('')}
+                                  </div>
+                                </div>`
                               : ''
                           }
-                          <button class="btn-icon danger" style="width:24px;height:24px;font-size:12px;"
-                                  data-del-check="${esc(c.id)}" title="刪除">✕</button>
                         </div>
                       `;
                       })
@@ -183,14 +196,15 @@
                 if (!revLogs.length) return '';
                 return `
                   <div class="review-section">
-                    <div class="review-section-label">關聯工作日誌 (${revLogs.length})</div>
-                    <div class="log-link-chips">
+                    <div class="review-section-label">相關工作日誌 (${revLogs.length})</div>
+                    <div class="related-logs-list" style="margin-top:4px;">
                       ${revLogs
                         .map(
                           (l) => `
-                          <button type="button" class="todo-link-tag" style="border:none;padding:3px 9px;"
-                                  data-jump-log="${esc(l.id)}">
-                            ✎ ${esc(l.date)} · ${esc(l.title || '工作紀錄')}
+                          <button type="button" class="log-title-pill" data-jump-log="${esc(l.id)}"
+                                  title="點擊前往工作日誌：${esc(l.date)} ${esc(l.title || '工作紀錄')}">
+                            <span class="log-pill-date">${esc(l.date)}</span>
+                            <span class="log-pill-title">${esc(l.title || `${l.date} 工作紀錄`)}</span>
                           </button>
                         `
                         )

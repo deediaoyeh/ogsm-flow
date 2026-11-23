@@ -22,6 +22,8 @@
     expiresAt: 0,
     user: null, // { email, name, picture }
     driveFileId: null,
+    lastKnownDriveModifiedTime: null,
+    hadRemoteProjects: false,
     syncStatus: 'idle', // 'idle' | 'syncing' | 'synced' | 'error'
     lastSyncedAt: null,
     syncError: '',
@@ -32,6 +34,32 @@
   let idleTimer = null;
   let expiryTimer = null;
   let isPulling = false;
+  let pendingDeletedIds = {};
+
+  function markLocalDirty() {
+    try {
+      localStorage.setItem('ogsm_dirty_local', '1');
+    } catch (_) {}
+  }
+
+  function clearLocalDirty() {
+    try {
+      localStorage.removeItem('ogsm_dirty_local');
+    } catch (_) {}
+    pendingDeletedIds = {};
+  }
+
+  function hasPendingLocalChanges() {
+    try {
+      return localStorage.getItem('ogsm_dirty_local') === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function markDeletedId(id) {
+    if (id) pendingDeletedIds[id] = Date.now();
+  }
 
   async function sha256Hex(str) {
     const buf = new TextEncoder().encode(str);
@@ -222,7 +250,7 @@
 
   async function updateDriveFile(fileId, payloadStr) {
     const res = await driveFetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media`,
+      `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,modifiedTime`,
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json; charset=UTF-8' },
@@ -230,6 +258,26 @@
       }
     );
     if (!res.ok) throw new Error('更新 Google Drive 雲端資料失敗');
+    const updated = await res.json();
+    if (updated && updated.modifiedTime) {
+      session.lastKnownDriveModifiedTime = updated.modifiedTime;
+    }
+    return updated;
+  }
+
+  async function fetchRemoteMeta(fileId) {
+    const res = await driveFetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,modifiedTime`
+    );
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  async function downloadRemotePayload(fileId) {
+    const res = await driveFetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`
+    );
+    if (!res.ok) throw new Error('下載雲端資料失敗');
     return res.json();
   }
 
@@ -242,19 +290,36 @@
       const file = await findDriveFile();
       if (file) {
         session.driveFileId = file.id;
-        const res = await driveFetch(
-          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media`
+        session.lastKnownDriveModifiedTime = file.modifiedTime || null;
+        const payload = await downloadRemotePayload(file.id);
+        const remoteSource = payload && payload.data ? payload.data : payload;
+        session.hadRemoteProjects = Boolean(
+          remoteSource && Array.isArray(remoteSource.projects) && remoteSource.projects.length > 0
         );
-        if (!res.ok) throw new Error('下載雲端資料失敗');
-        const payload = await res.json();
-        await OGSM.db.importAll(payload);
+
+        // 若本機仍有未同步變更，採非破壞性合併（絕不刪除既有本機或雲端資料）
+        const localBefore = await OGSM.db.loadAllStores();
+        const localHasAny = OGSM.db.STORES.some((s) => (localBefore[s] || []).length > 0);
+        if (hasPendingLocalChanges() && localHasAny) {
+          const mergedData = OGSM.db.mergeDatasets(localBefore, remoteSource, pendingDeletedIds);
+          await OGSM.db.importAll({ data: mergedData }, { merge: false });
+          const mergedExport = await OGSM.db.exportAll();
+          await updateDriveFile(file.id, JSON.stringify(mergedExport));
+          clearLocalDirty();
+        } else {
+          await OGSM.db.importAll(payload, { merge: false });
+          clearLocalDirty();
+        }
         session.lastSyncedAt = Date.now();
         session.syncStatus = 'synced';
       } else {
         // 第一次使用：初始化本機（若空則載入範例）並建立雲端檔
         await OGSM.db.ensureSeeded();
         const exported = await OGSM.db.exportAll();
-        await createDriveFile(JSON.stringify(exported));
+        const created = await createDriveFile(JSON.stringify(exported));
+        session.lastKnownDriveModifiedTime = (created && created.modifiedTime) || null;
+        session.hadRemoteProjects = exported.data.projects.length > 0;
+        clearLocalDirty();
         session.lastSyncedAt = Date.now();
         session.syncStatus = 'synced';
       }
@@ -268,33 +333,68 @@
     }
   }
 
-  async function pushToDriveNow() {
-    if (!session.authenticated || isPulling) return;
+  async function pushToDriveNow(options) {
+    if (!session.authenticated || isPulling) return false;
+    const opts = options || {};
     clearTimeout(syncTimer);
     session.syncStatus = 'syncing';
     session.syncError = '';
     updateSyncUI();
     try {
-      const exported = await OGSM.db.exportAll();
-      const bodyStr = JSON.stringify(exported);
+      let exported = await OGSM.db.exportAll();
+
+      // 安全防呆 1：禁止在未明確確認刪除專案的情況下，用空白專案意外覆蓋既有雲端資料
+      if (exported.data.projects.length === 0 && !opts.allowEmptyPush && session.hadRemoteProjects) {
+        session.syncStatus = 'error';
+        session.syncError = '已攔截空白覆蓋寫入以保護雲端既有資料';
+        updateSyncUI();
+        return false;
+      }
+
       if (session.driveFileId) {
-        await updateDriveFile(session.driveFileId, bodyStr);
+        // 安全防呆 2：寫入前先檢查雲端是否有其他裝置的新更新；若有，先非破壞性合併再上傳
+        const remoteMeta = await fetchRemoteMeta(session.driveFileId);
+        if (
+          remoteMeta &&
+          remoteMeta.modifiedTime &&
+          session.lastKnownDriveModifiedTime &&
+          remoteMeta.modifiedTime !== session.lastKnownDriveModifiedTime
+        ) {
+          const remotePayload = await downloadRemotePayload(session.driveFileId);
+          const remoteSource = remotePayload && remotePayload.data ? remotePayload.data : remotePayload;
+          const mergedData = OGSM.db.mergeDatasets(exported.data, remoteSource, pendingDeletedIds);
+          await OGSM.db.importAll({ data: mergedData }, { merge: false });
+          exported = await OGSM.db.exportAll();
+          await OGSM.store.hydrate();
+        }
+        await updateDriveFile(session.driveFileId, JSON.stringify(exported));
       } else {
         const existing = await findDriveFile();
         if (existing) {
           session.driveFileId = existing.id;
-          await updateDriveFile(existing.id, bodyStr);
+          const remotePayload = await downloadRemotePayload(existing.id);
+          const remoteSource = remotePayload && remotePayload.data ? remotePayload.data : remotePayload;
+          const mergedData = OGSM.db.mergeDatasets(exported.data, remoteSource, pendingDeletedIds);
+          await OGSM.db.importAll({ data: mergedData }, { merge: false });
+          exported = await OGSM.db.exportAll();
+          await updateDriveFile(existing.id, JSON.stringify(exported));
         } else {
-          await createDriveFile(bodyStr);
+          const created = await createDriveFile(JSON.stringify(exported));
+          session.lastKnownDriveModifiedTime = (created && created.modifiedTime) || null;
         }
       }
+
+      session.hadRemoteProjects = exported.data.projects.length > 0;
+      clearLocalDirty();
       session.lastSyncedAt = Date.now();
       session.syncStatus = 'synced';
       updateSyncUI();
+      return true;
     } catch (err) {
       session.syncStatus = 'error';
       session.syncError = err.message || '同步失敗';
       updateSyncUI();
+      return false;
     }
   }
 
@@ -342,16 +442,17 @@
     }
   }
 
-  async function lockSession(message, isError, flushBeforeLock) {
+  async function lockSession(message, isError, flushAndClearCache) {
     clearTimeout(idleTimer);
     clearTimeout(expiryTimer);
     clearTimeout(syncTimer);
 
-    if (flushBeforeLock && session.authenticated && session.accessToken && Date.now() < session.expiresAt) {
+    let syncedSafely = !hasPendingLocalChanges();
+    if (flushAndClearCache && session.authenticated && session.accessToken && Date.now() < session.expiresAt) {
       try {
-        await pushToDriveNow();
+        syncedSafely = await pushToDriveNow();
       } catch (_) {
-        // best effort flush
+        syncedSafely = false;
       }
     }
 
@@ -361,17 +462,28 @@
     session.expiresAt = 0;
     session.user = null;
     session.driveFileId = null;
+    session.lastKnownDriveModifiedTime = null;
     session.syncStatus = 'idle';
 
-    // 撤銷 Google 權杖 + 清除本機 IndexedDB 快取，避免共用裝置殘留資料
+    // 撤銷 Google 權杖
     if (tokenToRevoke && global.google && google.accounts && google.accounts.oauth2) {
       try {
         google.accounts.oauth2.revoke(tokenToRevoke, () => {});
       } catch (_) {}
     }
-    await clearAllLocalCache();
 
-    // 清空記憶體中已渲染資料
+    // 僅在「使用者主動登出」且「雲端已確認同步成功」時才清除本機快取；
+    // 若為閒置自動上鎖或網路未同步成功，完整保留本機資料，下次登入自動合併！
+    let finalMsg = message || '';
+    if (flushAndClearCache) {
+      if (syncedSafely) {
+        await clearAllLocalCache();
+      } else {
+        finalMsg = '已登出鎖定，但因部分異動尚未同步完成，系統已保留本機資料避免遺失，下次登入會自動合併。';
+      }
+    }
+
+    // 清空記憶體中已渲染畫面
     OGSM.db.STORES.forEach((s) => {
       OGSM.store.state.data[s] = [];
     });
@@ -379,7 +491,7 @@
     OGSM.drawer.close();
     OGSM.modals.closeModal();
 
-    showLockScreen(message, isError);
+    showLockScreen(finalMsg, isError);
   }
 
   async function handleTokenResponse(resp) {
@@ -478,6 +590,8 @@
     pushToDriveNow,
     deleteDriveSyncFile,
     scheduleSync,
+    markLocalDirty,
+    markDeletedId,
     lockSession,
     updateSyncUI,
   };

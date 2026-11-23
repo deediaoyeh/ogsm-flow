@@ -208,18 +208,20 @@
       store.toast('已匯出 JSON 備份檔');
     });
 
-    // 匯入 JSON 還原
+    // 匯入 JSON 還原（預設採安全合併模式，不刪除既有資料）
     container.querySelector('#inputImportJson').addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       try {
         const text = await file.text();
         const parsed = JSON.parse(text);
-        if (!confirm('匯入備份將會覆蓋目前瀏覽器資料庫內容，確定要還原嗎？')) return;
-        await OGSM.db.importAll(parsed);
+        if (!confirm('將以「安全合併模式」匯入備份：保留您所有既有資料，僅補入或更新備份檔內的項目。確定匯入嗎？')) {
+          return;
+        }
+        await OGSM.db.importAll(parsed, { merge: true });
         await store.hydrate();
         if (OGSM.auth) await OGSM.auth.pushToDriveNow();
-        store.toast('資料還原並同步至雲端成功！');
+        store.toast('已安全合併匯入資料並同步至雲端（未刪除既有資料）');
       } catch (err) {
         alert('匯入失敗：' + err.message);
       } finally {

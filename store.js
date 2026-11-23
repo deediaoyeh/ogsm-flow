@@ -237,25 +237,36 @@
   }
 
   function triggerCloudSync() {
+    if (OGSM.auth && typeof OGSM.auth.markLocalDirty === 'function') {
+      OGSM.auth.markLocalDirty();
+    }
     if (OGSM.auth && typeof OGSM.auth.scheduleSync === 'function') {
       OGSM.auth.scheduleSync();
     }
   }
 
+  function recordDeletedId(id) {
+    if (id && OGSM.auth && typeof OGSM.auth.markDeletedId === 'function') {
+      OGSM.auth.markDeletedId(id);
+    }
+  }
+
   /* CRUD 操作封裝 */
   async function saveRecord(storeName, record) {
-    await OGSM.db.put(storeName, record);
+    const stamped = { ...record, updatedAt: new Date().toISOString() };
+    await OGSM.db.put(storeName, stamped);
     const arr = state.data[storeName];
-    const idx = arr.findIndex((item) => item.id === record.id);
-    if (idx >= 0) arr[idx] = record;
-    else arr.push(record);
+    const idx = arr.findIndex((item) => item.id === stamped.id);
+    if (idx >= 0) arr[idx] = stamped;
+    else arr.push(stamped);
     notify();
     triggerCloudSync();
-    return record;
+    return stamped;
   }
 
   async function deleteRecord(storeName, id) {
     await OGSM.db.remove(storeName, id);
+    recordDeletedId(id);
     state.data[storeName] = state.data[storeName].filter((item) => item.id !== id);
     notify();
     triggerCloudSync();
@@ -266,14 +277,22 @@
     const relatedFiles = state.data.files.filter((f) => f.measureId === measureId);
     const relatedTodos = state.data.todos.filter((t) => t.measureId === measureId);
 
-    for (const c of relatedChecks) await OGSM.db.remove('checklists', c.id);
-    for (const f of relatedFiles) await OGSM.db.remove('files', f.id);
+    for (const c of relatedChecks) {
+      await OGSM.db.remove('checklists', c.id);
+      recordDeletedId(c.id);
+    }
+    for (const f of relatedFiles) {
+      await OGSM.db.remove('files', f.id);
+      recordDeletedId(f.id);
+    }
     // 關聯的 To-Do 改為獨立待辦而不直接抹除，避免誤刪日常待辦
     for (const t of relatedTodos) {
       t.measureId = null;
+      t.updatedAt = new Date().toISOString();
       await OGSM.db.put('todos', t);
     }
     await OGSM.db.remove('measures', measureId);
+    recordDeletedId(measureId);
 
     state.data.checklists = state.data.checklists.filter((c) => c.measureId !== measureId);
     state.data.files = state.data.files.filter((f) => f.measureId !== measureId);
@@ -311,6 +330,7 @@
           projectId: null,
           measureId: null,
           note: f.note ? `${f.note}（原專案：${projectName}）` : `原專案：${projectName}`,
+          updatedAt: new Date().toISOString(),
         };
         await OGSM.db.put('files', updated);
         const idx = state.data.files.findIndex((item) => item.id === f.id);
@@ -319,6 +339,7 @@
     } else {
       for (const f of projFiles) {
         await OGSM.db.remove('files', f.id);
+        recordDeletedId(f.id);
       }
       state.data.files = state.data.files.filter((f) => f.projectId !== projectId);
     }
@@ -326,10 +347,14 @@
     const stores = ['goals', 'strategies', 'measures', 'todos', 'checklists', 'reviews', 'logs'];
     for (const s of stores) {
       const items = state.data[s].filter((r) => r.projectId === projectId);
-      for (const item of items) await OGSM.db.remove(s, item.id);
+      for (const item of items) {
+        await OGSM.db.remove(s, item.id);
+        recordDeletedId(item.id);
+      }
       state.data[s] = state.data[s].filter((r) => r.projectId !== projectId);
     }
     await OGSM.db.remove('projects', projectId);
+    recordDeletedId(projectId);
     state.data.projects = state.data.projects.filter((p) => p.id !== projectId);
     state.currentProjectId = state.data.projects[0] ? state.data.projects[0].id : null;
     localStorage.setItem('ogsm_current_project', state.currentProjectId || '');
@@ -345,7 +370,7 @@
       if (cloudAction === 'delete_cloud_file') {
         await OGSM.auth.deleteDriveSyncFile();
       } else if (cloudAction === 'sync') {
-        await OGSM.auth.pushToDriveNow();
+        await OGSM.auth.pushToDriveNow({ allowEmptyPush: true });
       }
       // cloudAction === 'keep_cloud' 則保留雲端原本的同步檔不覆寫
     }

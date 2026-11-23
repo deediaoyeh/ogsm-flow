@@ -146,7 +146,9 @@
     };
   }
 
-  async function importAll(payload) {
+  async function importAll(payload, options) {
+    const opts = options || {};
+    const mergeMode = Boolean(opts.merge);
     const source = payload && payload.data ? payload.data : payload;
     if (!source || !Array.isArray(source.projects)) {
       throw new Error('備份檔案格式不正確，找不到 projects 資料。');
@@ -156,13 +158,55 @@
       const tx = db.transaction(STORES, 'readwrite');
       STORES.forEach((storeName) => {
         const os = tx.objectStore(storeName);
-        os.clear();
-        const rows = Array.isArray(source[storeName]) ? source[storeName] : [];
-        rows.forEach((row) => os.put(row));
+        const hasStoreInSource = Array.isArray(source[storeName]);
+        // 合併模式，或舊版備份缺少新資料表（例如 logs）時，絕不清空既有資料
+        if (!mergeMode && hasStoreInSource) {
+          os.clear();
+        }
+        const rows = hasStoreInSource ? source[storeName] : [];
+        rows.forEach((row) => {
+          if (row && row.id) os.put(row);
+        });
       });
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+  }
+
+  // 非破壞性雙向合併（保留兩邊既有資料；相同 id 取 updatedAt/createdAt 較新者，並尊重明確刪除清單）
+  function mergeDatasets(localData, remoteData, deletedIdsMap) {
+    const merged = {};
+    const deletedSet = new Set(Object.keys(deletedIdsMap || {}));
+
+    STORES.forEach((storeName) => {
+      const map = new Map();
+      const remoteRows = Array.isArray(remoteData && remoteData[storeName]) ? remoteData[storeName] : [];
+      const localRows = Array.isArray(localData && localData[storeName]) ? localData[storeName] : [];
+
+      remoteRows.forEach((r) => {
+        if (r && r.id && !deletedSet.has(r.id)) {
+          map.set(r.id, r);
+        }
+      });
+
+      localRows.forEach((l) => {
+        if (!l || !l.id || deletedSet.has(l.id)) return;
+        const existing = map.get(l.id);
+        if (!existing) {
+          map.set(l.id, l);
+        } else {
+          const lTime = String(l.updatedAt || l.createdAt || '');
+          const rTime = String(existing.updatedAt || existing.createdAt || '');
+          if (lTime >= rTime) {
+            map.set(l.id, l);
+          }
+        }
+      });
+
+      merged[storeName] = Array.from(map.values());
+    });
+
+    return merged;
   }
 
   function buildSeedData() {
@@ -468,6 +512,7 @@
     loadAllStores,
     exportAll,
     importAll,
+    mergeDatasets,
     ensureSeeded,
     resetToSeed,
   };
