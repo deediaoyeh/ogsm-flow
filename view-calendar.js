@@ -26,12 +26,16 @@
   function render(container) {
     const store = OGSM.store;
     const { esc } = store;
+    const allMode = store.isAllMode();
     const project = store.currentProject();
 
-    if (!project) {
+    if (!store.hasAnyContext()) {
       container.innerHTML = `<div class="empty-state"><p>請先建立或選擇一個專案。</p></div>`;
       return;
     }
+
+    const pTag = (pid) => (allMode ? `<span class="proj-mini-tag">${esc(store.projectNameById(pid))}</span>` : '');
+    const pPrefix = (pid) => (allMode ? `[${store.projectNameById(pid)}] ` : '');
 
     const year = store.state.calendarYear;
     const month = store.state.calendarMonth; // 0-11
@@ -69,7 +73,7 @@
       pushItem(ev.date, {
         kind: 'event',
         cls: cat.cls,
-        label: (ev.time ? `${ev.time} ` : '') + ev.title,
+        label: pPrefix(ev.projectId) + (ev.time ? `${ev.time} ` : '') + ev.title,
         raw: ev,
       });
     });
@@ -79,7 +83,7 @@
         pushItem(m.endDate, {
           kind: 'measure',
           cls: 'amber',
-          label: `M 截止：${m.title}`,
+          label: `${pPrefix(m.projectId)}M 截止：${m.title}`,
           raw: m,
         });
       }
@@ -90,7 +94,7 @@
         pushItem(t.dueDate, {
           kind: 'todo',
           cls: t.completed ? '' : 'green',
-          label: `${t.completed ? '✓ ' : '☐ '}${t.title}`,
+          label: `${pPrefix(t.projectId)}${t.completed ? '✓ ' : '☐ '}${t.title}`,
           raw: t,
         });
       }
@@ -101,7 +105,7 @@
         pushItem(l.date, {
           kind: 'log',
           cls: 'blue',
-          label: `✎ ${(l.title || '').trim() || '時間軸紀錄'}`,
+          label: `${pPrefix(l.projectId)}✎ ${(l.title || '').trim() || '時間軸紀錄'}`,
           raw: l,
         });
       }
@@ -112,7 +116,7 @@
         pushItem(r.reviewDate, {
           kind: 'review',
           cls: 'amber',
-          label: `✦ ${r.periodLabel}`,
+          label: `${pPrefix(r.projectId)}✦ ${r.periodLabel}`,
           raw: r,
         });
       }
@@ -207,7 +211,9 @@
           <div class="section-header" style="margin-bottom:12px;">
             <div>
               <h3 class="section-title">${esc(selected)}</h3>
-              <div class="muted-text" style="font-size:11.5px;">${esc(project.name)} 的當日行程與進度</div>
+              <div class="muted-text" style="font-size:11.5px;">
+                ${allMode ? `全部專案（共 ${store.state.data.projects.length} 個專案）的共同排程` : `${esc(project.name)} 的當日行程與進度`}
+              </div>
             </div>
           </div>
 
@@ -233,7 +239,8 @@
                               return `
                               <div class="cal-detail-item">
                                 <div class="row-between" style="gap:6px;">
-                                  <div class="row-gap-xs" style="min-width:0;">
+                                  <div class="row-gap-xs" style="min-width:0;flex-wrap:wrap;">
+                                    ${pTag(ev.projectId)}
                                     <span class="pill ${cat.cls}" style="font-size:10.5px;">${cat.label}</span>
                                     ${ev.time ? `<span class="muted-text" style="font-size:11.5px;">${esc(ev.time)}</span>` : ''}
                                   </div>
@@ -261,6 +268,7 @@
                               (t) => `
                               <div class="checklist-row ${t.completed ? 'done' : ''}">
                                 <button type="button" class="checkbox-round ${t.completed ? 'checked' : ''}" data-cal-todo="${esc(t.id)}">${t.completed ? '✓' : ''}</button>
+                                ${pTag(t.projectId)}
                                 <span style="flex:1;">${esc(t.title)}</span>
                               </div>
                             `
@@ -278,6 +286,7 @@
                             .map(
                               (m) => `
                               <button type="button" class="cal-detail-link" data-open-measure="${esc(m.id)}">
+                                ${pTag(m.projectId)}
                                 <span class="pill ${m.endDate === selected ? 'amber' : ''}" style="font-size:10.5px;">
                                   ${m.endDate === selected ? '今日截止' : '進行中'}
                                 </span>
@@ -301,6 +310,7 @@
                               return `
                               <button type="button" class="cal-detail-link" data-jump-log="${esc(l.id)}">
                                 <span style="color:var(--accent);">✎</span>
+                                ${pTag(l.projectId)}
                                 <span style="flex:1;text-align:left;font-weight:500;">${esc(topic)}</span>
                                 ${l.time ? `<span class="muted-text" style="font-size:11px;">${esc(l.time)}</span>` : ''}
                               </button>

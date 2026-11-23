@@ -236,7 +236,7 @@
 
     const newLog = {
       id: OGSM.db.uid('log'),
-      projectId: store.state.currentProjectId,
+      projectId: opts.projectId || store.defaultWriteProjectId(),
       date: opts.date || today,
       time: opts.time || nowTimeStr(),
       logType: opts.logType || 'idea',
@@ -271,9 +271,9 @@
   function render(container) {
     const store = OGSM.store;
     const { esc, safeUrl } = store;
-    const project = store.currentProject();
+    const allMode = store.isAllMode();
 
-    if (!project) {
+    if (!store.hasAnyContext()) {
       container.innerHTML = `<div class="empty-state"><p>請先建立或選擇一個專案。</p></div>`;
       return;
     }
@@ -368,6 +368,7 @@
                       <span class="tl-datetime">${esc(l.date || '未設日期')}${l.time ? ` · ${esc(l.time)}` : ''}</span>
                       <span class="pill ${tMeta.cls}" style="font-size:10.5px;">${tMeta.icon} ${tMeta.label}</span>
                     </div>
+                    ${allMode ? `<div style="margin-bottom:2px;"><span class="proj-mini-tag">${esc(store.projectNameById(l.projectId))}</span></div>` : ''}
                     <div class="log-item-title">${esc((l.title || '').trim() || `未命名主題（${l.date || ''}）`)}</div>
                     ${
                       ogsmInfo || auditTotal > 0

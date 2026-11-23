@@ -47,7 +47,7 @@
     const linkedLogs = store.projectLogs().filter(
       (l) => l.measureId === m.id || (l.ogsmType === 'measure' && l.ogsmId === m.id)
     );
-    const strategies = store.projectStrategies();
+    const strategies = store.projectStrategies(null, m.projectId);
 
     const pill = document.getElementById('drawerStatusPill');
     pill.textContent = status.label;
@@ -269,7 +269,7 @@
       if (!name || !url) return;
       await store.saveRecord('files', {
         id: OGSM.db.uid('file'),
-        projectId: store.state.currentProjectId,
+        projectId: m.projectId,
         measureId: m.id,
         name,
         url,
@@ -295,7 +295,7 @@
       if (!text) return;
       await store.saveRecord('checklists', {
         id: OGSM.db.uid('chk'),
-        projectId: store.state.currentProjectId,
+        projectId: m.projectId,
         measureId: m.id,
         text,
         checked: false,
@@ -324,7 +324,7 @@
       if (!title) return;
       await store.saveRecord('todos', {
         id: OGSM.db.uid('todo'),
-        projectId: store.state.currentProjectId,
+        projectId: m.projectId,
         measureId: m.id,
         title,
         dueDate: m.endDate || store.todayStr(),
@@ -346,7 +346,7 @@
     if (btnDrawerCreateLog) {
       btnDrawerCreateLog.addEventListener('click', async () => {
         closeDrawer();
-        await OGSM.views.logs.createNewLog({ ogsmType: 'measure', ogsmId: m.id, measureId: m.id });
+        await OGSM.views.logs.createNewLog({ projectId: m.projectId, ogsmType: 'measure', ogsmId: m.id, measureId: m.id });
         store.setView('logs');
       });
     }
@@ -696,6 +696,7 @@
   function openMeasureCreateModal(presetGoalId, presetStrategyId) {
     const store = OGSM.store;
     const { esc } = store;
+    const allMode = store.isAllMode();
     const strategies = store.projectStrategies();
     if (!strategies.length) {
       store.toast('請先在 OGSM 藍圖建立目標 G 與策略 S');
@@ -709,7 +710,12 @@
           <div class="form-field">
             <label>所屬策略 (S)</label>
             <select class="select" name="strategyId">
-              ${strategies.map((s) => `<option value="${esc(s.id)}" ${s.id === activeStratId ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}
+              ${strategies
+                .map(
+                  (s) =>
+                    `<option value="${esc(s.id)}" ${s.id === activeStratId ? 'selected' : ''}>${allMode ? `【${esc(store.projectNameById(s.projectId))}】` : ''}${esc(s.title)}</option>`
+                )
+                .join('')}
             </select>
           </div>
           <div class="form-field">
@@ -754,7 +760,7 @@
           const title = String(fd.get('title')).trim();
           await store.saveRecord('measures', {
             id: mId,
-            projectId: store.state.currentProjectId,
+            projectId: strat ? strat.projectId : store.defaultWriteProjectId(),
             goalId: strat ? strat.goalId : presetGoalId || null,
             strategyId: stratId,
             title,
@@ -769,7 +775,7 @@
           if (driveUrl) {
             await store.saveRecord('files', {
               id: OGSM.db.uid('file'),
-              projectId: store.state.currentProjectId,
+              projectId: strat ? strat.projectId : store.defaultWriteProjectId(),
               measureId: mId,
               name: `${title} — 相關文件`,
               url: driveUrl,
@@ -788,11 +794,23 @@
   function openFileModal() {
     const store = OGSM.store;
     const { esc } = store;
+    const allMode = store.isAllMode();
+    const projects = store.state.data.projects;
     const measures = store.projectMeasures();
     openModal(
       '新增 Google Drive 檔案連結',
       `
         <form class="form-stack" id="modalFileForm">
+          ${
+            allMode && projects.length
+              ? `<div class="form-field">
+                  <label>歸屬專案</label>
+                  <select class="select" name="projectId">
+                    ${projects.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}
+                  </select>
+                </div>`
+              : ''
+          }
           <div class="form-field">
             <label>檔案名稱</label>
             <input type="text" class="input" name="name" placeholder="例如：Q4 行銷預算試算表" required />
@@ -805,7 +823,12 @@
             <label>關聯至行動項目 (M)</label>
             <select class="select" name="measureId">
               <option value="">專案共用檔案（顯示在 OGSM 頂部）</option>
-              ${measures.map((m) => `<option value="${esc(m.id)}">M · ${esc(m.title)}</option>`).join('')}
+              ${measures
+                .map(
+                  (m) =>
+                    `<option value="${esc(m.id)}">${allMode ? `【${esc(store.projectNameById(m.projectId))}】` : ''}M · ${esc(m.title)}</option>`
+                )
+                .join('')}
             </select>
           </div>
           <div class="form-field">
@@ -825,10 +848,15 @@
           const fd = new FormData(e.target);
           const name = String(fd.get('name')).trim();
           const url = String(fd.get('url')).trim();
+          const mId = fd.get('measureId') || null;
+          const matchedM = mId ? measures.find((item) => item.id === mId) : null;
+          const ownerProjId = matchedM
+            ? matchedM.projectId
+            : fd.get('projectId') || store.defaultWriteProjectId();
           await store.saveRecord('files', {
             id: OGSM.db.uid('file'),
-            projectId: store.state.currentProjectId,
-            measureId: fd.get('measureId') || null,
+            projectId: ownerProjId,
+            measureId: mId,
             name,
             url,
             driveType: OGSM.db.detectDriveType(url, name),
@@ -846,7 +874,9 @@
     const store = OGSM.store;
     const { esc } = store;
     const isEdit = Boolean(existing);
-    const snap = store.projectSummary();
+    const allMode = store.isAllMode();
+    const projects = store.state.data.projects;
+    const snap = store.projectSummary(existing ? existing.projectId : null);
     const goalRate = existing ? existing.snapshotGoalRate : snap.avgGoalRate;
     const measureRate = existing ? existing.snapshotMeasureRate : snap.avgMeasureRate;
     const checklistRate = existing ? existing.snapshotChecklistRate : snap.checklistRate;
@@ -857,6 +887,16 @@
       isEdit ? '編輯定期覆盤紀錄' : '建立本期 OGSM 定期覆盤',
       `
         <form class="form-stack" id="modalReviewForm">
+          ${
+            allMode && !isEdit && projects.length
+              ? `<div class="form-field">
+                  <label>歸屬專案</label>
+                  <select class="select" name="projectId">
+                    ${projects.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}
+                  </select>
+                </div>`
+              : ''
+          }
           <div class="review-snapshots" style="margin:0;">
             <div class="snap-box">
               <div class="snap-label">G 目標達成快照</div>
@@ -913,7 +953,7 @@
           const fd = new FormData(e.target);
           await store.saveRecord('reviews', {
             id: existing ? existing.id : OGSM.db.uid('rev'),
-            projectId: store.state.currentProjectId,
+            projectId: existing ? existing.projectId : fd.get('projectId') || store.defaultWriteProjectId(),
             periodType: String(fd.get('periodType')),
             periodLabel: String(fd.get('periodLabel')).trim(),
             reviewDate: String(fd.get('reviewDate')),
@@ -936,14 +976,29 @@
     const store = OGSM.store;
     const { esc } = store;
     const isEdit = Boolean(existing);
+    const allMode = store.isAllMode();
+    const projects = store.state.data.projects;
     const measures = store.projectMeasures();
     const defaultDate = existing ? existing.date : presetDate || store.todayStr();
     const currentCat = existing ? existing.category || 'meeting' : 'meeting';
+    const activeProjId = existing ? existing.projectId : store.defaultWriteProjectId();
 
     openModal(
       isEdit ? '編輯專案行程' : '新增專案行程',
       `
         <form class="form-stack" id="modalEventForm">
+          ${
+            allMode && projects.length
+              ? `<div class="form-field">
+                  <label>歸屬專案</label>
+                  <select class="select" name="projectId">
+                    ${projects
+                      .map((p) => `<option value="${esc(p.id)}" ${p.id === activeProjId ? 'selected' : ''}>${esc(p.name)}</option>`)
+                      .join('')}
+                  </select>
+                </div>`
+              : ''
+          }
           <div class="form-field">
             <label>行程標題</label>
             <input type="text" class="input" name="title" value="${esc(existing ? existing.title : '')}" placeholder="例如：專案進度檢討會議、簡報定稿截止" required />
@@ -975,7 +1030,7 @@
                 ${measures
                   .map(
                     (m) =>
-                      `<option value="${esc(m.id)}" ${existing && existing.measureId === m.id ? 'selected' : ''}>M · ${esc(m.title)}</option>`
+                      `<option value="${esc(m.id)}" ${existing && existing.measureId === m.id ? 'selected' : ''}>${allMode ? `【${esc(store.projectNameById(m.projectId))}】` : ''}M · ${esc(m.title)}</option>`
                   )
                   .join('')}
               </select>
@@ -997,14 +1052,19 @@
           e.preventDefault();
           const fd = new FormData(e.target);
           const dateVal = String(fd.get('date'));
+          const mId = fd.get('measureId') || null;
+          const matchedM = mId ? measures.find((item) => item.id === mId) : null;
+          const ownerProjId = matchedM
+            ? matchedM.projectId
+            : fd.get('projectId') || activeProjId || store.defaultWriteProjectId();
           await store.saveRecord('events', {
             id: existing ? existing.id : OGSM.db.uid('evt'),
-            projectId: store.state.currentProjectId,
+            projectId: ownerProjId,
             date: dateVal,
             time: String(fd.get('time') || ''),
             category: String(fd.get('category') || 'meeting'),
             title: String(fd.get('title')).trim(),
-            measureId: fd.get('measureId') || null,
+            measureId: mId,
             note: String(fd.get('note') || '').trim(),
             createdAt: existing ? existing.createdAt : new Date().toISOString(),
           });

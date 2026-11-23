@@ -6,10 +6,12 @@
 
   const OGSM = (global.OGSM = global.OGSM || {});
   const listeners = new Set();
+  const ALL_PROJECTS_ID = '__ALL__';
 
   const state = {
     currentView: 'ogsm',
     currentProjectId: null,
+    lastSingleProjectId: null,
     searchQuery: '',
     ganttScale: 'day', // 'day' | 'week'
     ganttOffsetDays: -5,
@@ -105,21 +107,58 @@
     state.data = await OGSM.db.loadAllStores();
     const savedProj = localStorage.getItem('ogsm_current_project');
     const exists = state.data.projects.some((p) => p.id === savedProj);
-    if (exists) {
+    if (savedProj === ALL_PROJECTS_ID && state.data.projects.length > 0) {
+      state.currentProjectId = ALL_PROJECTS_ID;
+      state.lastSingleProjectId = state.data.projects[0].id;
+    } else if (exists) {
       state.currentProjectId = savedProj;
+      state.lastSingleProjectId = savedProj;
     } else if (state.data.projects.length > 0) {
       state.currentProjectId = state.data.projects[0].id;
+      state.lastSingleProjectId = state.data.projects[0].id;
     } else {
       state.currentProjectId = null;
+      state.lastSingleProjectId = null;
     }
     notify();
   }
 
+  function isAllMode() {
+    return state.currentProjectId === ALL_PROJECTS_ID;
+  }
+
   function setProject(projectId) {
+    if (projectId && projectId !== ALL_PROJECTS_ID) {
+      state.lastSingleProjectId = projectId;
+    }
     state.currentProjectId = projectId;
     state.activeDrawerMeasureId = null;
     localStorage.setItem('ogsm_current_project', projectId || '');
     notify();
+  }
+
+  function toggleAllMode() {
+    if (isAllMode()) {
+      const target =
+        state.data.projects.find((p) => p.id === state.lastSingleProjectId) ||
+        state.data.projects[0];
+      setProject(target ? target.id : null);
+    } else if (state.data.projects.length > 0) {
+      setProject(ALL_PROJECTS_ID);
+    }
+  }
+
+  function projectNameById(id) {
+    const p = state.data.projects.find((item) => item.id === id);
+    return p ? p.name : '未指定專案';
+  }
+
+  function defaultWriteProjectId() {
+    if (!isAllMode() && state.currentProjectId) return state.currentProjectId;
+    const fallback =
+      state.data.projects.find((p) => p.id === state.lastSingleProjectId) ||
+      state.data.projects[0];
+    return fallback ? fallback.id : null;
   }
 
   function setView(view) {
@@ -133,30 +172,43 @@
   }
 
   function currentProject() {
+    if (isAllMode()) return null;
     return state.data.projects.find((p) => p.id === state.currentProjectId) || null;
   }
 
-  function projectGoals() {
-    return state.data.goals
-      .filter((g) => g.projectId === state.currentProjectId)
+  function hasAnyContext() {
+    return isAllMode() ? state.data.projects.length > 0 : Boolean(currentProject());
+  }
+
+  function projectGoals(projectIdOverride) {
+    const all = isAllMode() && !projectIdOverride;
+    const pid = projectIdOverride || state.currentProjectId;
+    return (state.data.goals || [])
+      .filter((g) => (all ? true : g.projectId === pid))
       .sort((a, b) => (a.order || 0) - (b.order || 0));
   }
 
-  function projectStrategies(goalId) {
-    return state.data.strategies
-      .filter((s) => s.projectId === state.currentProjectId && (!goalId || s.goalId === goalId))
+  function projectStrategies(goalId, projectIdOverride) {
+    const all = isAllMode() && !projectIdOverride;
+    const pid = projectIdOverride || state.currentProjectId;
+    return (state.data.strategies || [])
+      .filter((s) => (all ? true : s.projectId === pid) && (!goalId || s.goalId === goalId))
       .sort((a, b) => (a.order || 0) - (b.order || 0));
   }
 
-  function projectMeasures(strategyId) {
-    return state.data.measures
-      .filter((m) => m.projectId === state.currentProjectId && (!strategyId || m.strategyId === strategyId))
+  function projectMeasures(strategyId, projectIdOverride) {
+    const all = isAllMode() && !projectIdOverride;
+    const pid = projectIdOverride || state.currentProjectId;
+    return (state.data.measures || [])
+      .filter((m) => (all ? true : m.projectId === pid) && (!strategyId || m.strategyId === strategyId))
       .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '') || (a.order || 0) - (b.order || 0));
   }
 
-  function projectTodos() {
+  function projectTodos(projectIdOverride) {
+    const all = isAllMode() && !projectIdOverride;
+    const pid = projectIdOverride || state.currentProjectId;
     return (state.data.todos || [])
-      .filter((t) => t.projectId === state.currentProjectId)
+      .filter((t) => (all ? true : t.projectId === pid))
       .sort((a, b) => {
         if (a.completed !== b.completed) return a.completed ? 1 : -1;
         return (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99');
@@ -164,36 +216,44 @@
   }
 
   function measureChecklists(measureId) {
-    return state.data.checklists
+    return (state.data.checklists || [])
       .filter((c) => c.measureId === measureId)
       .sort((a, b) => (a.order || 0) - (b.order || 0));
   }
 
-  function projectChecklists() {
-    return state.data.checklists.filter((c) => c.projectId === state.currentProjectId);
+  function projectChecklists(projectIdOverride) {
+    const all = isAllMode() && !projectIdOverride;
+    const pid = projectIdOverride || state.currentProjectId;
+    return (state.data.checklists || []).filter((c) => (all ? true : c.projectId === pid));
   }
 
   function measureFiles(measureId) {
-    return state.data.files.filter((f) => f.measureId === measureId);
+    return (state.data.files || []).filter((f) => f.measureId === measureId);
   }
 
-  function projectFiles() {
-    return state.data.files.filter((f) => f.projectId === state.currentProjectId);
+  function projectFiles(projectIdOverride) {
+    const all = isAllMode() && !projectIdOverride;
+    const pid = projectIdOverride || state.currentProjectId;
+    return (state.data.files || []).filter((f) => (all ? Boolean(f.projectId) : f.projectId === pid));
   }
 
   function retainedFiles() {
-    return state.data.files.filter((f) => !f.projectId);
+    return (state.data.files || []).filter((f) => !f.projectId);
   }
 
-  function projectReviews() {
-    return state.data.reviews
-      .filter((r) => r.projectId === state.currentProjectId)
+  function projectReviews(projectIdOverride) {
+    const all = isAllMode() && !projectIdOverride;
+    const pid = projectIdOverride || state.currentProjectId;
+    return (state.data.reviews || [])
+      .filter((r) => (all ? true : r.projectId === pid))
       .sort((a, b) => (b.reviewDate || '').localeCompare(a.reviewDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
   }
 
-  function projectLogs() {
+  function projectLogs(projectIdOverride) {
+    const all = isAllMode() && !projectIdOverride;
+    const pid = projectIdOverride || state.currentProjectId;
     return (state.data.logs || [])
-      .filter((l) => l.projectId === state.currentProjectId)
+      .filter((l) => (all ? true : l.projectId === pid))
       .sort((a, b) => {
         const ka = `${a.date || ''} ${a.time || '00:00'} ${a.createdAt || ''}`;
         const kb = `${b.date || ''} ${b.time || '00:00'} ${b.createdAt || ''}`;
@@ -201,9 +261,11 @@
       });
   }
 
-  function projectEvents() {
+  function projectEvents(projectIdOverride) {
+    const all = isAllMode() && !projectIdOverride;
+    const pid = projectIdOverride || state.currentProjectId;
     return (state.data.events || [])
-      .filter((ev) => ev.projectId === state.currentProjectId)
+      .filter((ev) => (all ? true : ev.projectId === pid))
       .sort((a, b) => `${a.date || ''} ${a.time || ''}`.localeCompare(`${b.date || ''} ${b.time || ''}`));
   }
 
@@ -222,11 +284,11 @@
     return { key: 'planned', label: '待開始', pillClass: '' };
   }
 
-  function projectSummary() {
-    const goals = projectGoals();
-    const measures = projectMeasures();
-    const checklists = projectChecklists();
-    const todos = projectTodos();
+  function projectSummary(projectIdOverride) {
+    const goals = projectGoals(projectIdOverride);
+    const measures = projectMeasures(null, projectIdOverride);
+    const checklists = projectChecklists(projectIdOverride);
+    const todos = projectTodos(projectIdOverride);
 
     const avgGoalRate = goals.length
       ? Math.round(goals.reduce((acc, g) => acc + goalRate(g), 0) / goals.length)
@@ -406,6 +468,7 @@
   }
 
   OGSM.store = {
+    ALL_PROJECTS_ID,
     state,
     esc,
     safeUrl,
@@ -417,10 +480,15 @@
     notify,
     toast,
     hydrate,
+    isAllMode,
+    toggleAllMode,
+    projectNameById,
+    defaultWriteProjectId,
     setProject,
     setView,
     setSearch,
     currentProject,
+    hasAnyContext,
     projectGoals,
     projectStrategies,
     projectMeasures,

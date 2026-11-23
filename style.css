@@ -374,6 +374,61 @@ button {
   border-color: var(--accent);
 }
 
+.all-mode-toggle {
+  width: 100%;
+  margin-top: 7px;
+  padding: 6px 10px;
+  border-radius: var(--radius-xs);
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+.all-mode-toggle:hover {
+  background: var(--bg-surface);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.all-mode-toggle.active {
+  background: var(--accent-soft);
+  border-style: solid;
+  border-color: rgba(77, 107, 122, 0.42);
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+.proj-mini-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 550;
+  background: #eae5dc;
+  color: #4f4a42;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 16px;
+}
+.portfolio-card {
+  cursor: pointer;
+  transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+.portfolio-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
 /* 主導覽選單 */
 .nav-menu {
   display: flex;

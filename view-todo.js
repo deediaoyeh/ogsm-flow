@@ -10,13 +10,14 @@
   function render(container) {
     const store = OGSM.store;
     const { esc } = store;
-    const project = store.currentProject();
+    const allMode = store.isAllMode();
 
-    if (!project) {
+    if (!store.hasAnyContext()) {
       container.innerHTML = `<div class="empty-state"><p>請先建立或選擇一個專案。</p></div>`;
       return;
     }
 
+    const projects = store.state.data.projects;
     const measures = store.projectMeasures();
     const measureMap = new Map(measures.map((m) => [m.id, m]));
     const allTodos = store.projectTodos();
@@ -27,8 +28,10 @@
     const filtered = allTodos.filter((t) => {
       if (q) {
         const linked = t.measureId ? measureMap.get(t.measureId) : null;
+        const pName = store.projectNameById(t.projectId);
         const match =
           (t.title || '').toLowerCase().includes(q) ||
+          pName.toLowerCase().includes(q) ||
           (linked && (linked.title || '').toLowerCase().includes(q));
         if (!match) return false;
       }
@@ -45,9 +48,24 @@
     const countStandalone = allTodos.filter((t) => !t.completed && !t.measureId).length;
     const countDone = allTodos.filter((t) => t.completed).length;
 
-    const measureOptionsHtml = measures
-      .map((m) => `<option value="${esc(m.id)}">M · ${esc(m.title)}</option>`)
-      .join('');
+    const targetSelectOptionsHtml = allMode
+      ? projects
+          .map((p) => {
+            const pMeasures = store.projectMeasures(null, p.id);
+            return `
+              <optgroup label="${esc(p.name)}">
+                <option value="proj:${esc(p.id)}">【${esc(p.name)}】獨立臨時待辦</option>
+                ${pMeasures
+                  .map((m) => `<option value="meas:${esc(m.id)}">【${esc(p.name)}】M · ${esc(m.title)}</option>`)
+                  .join('')}
+              </optgroup>
+            `;
+          })
+          .join('')
+      : `
+          <option value="proj:${esc(store.state.currentProjectId)}">獨立臨時待辦（不綁 OGSM）</option>
+          ${measures.map((m) => `<option value="meas:${esc(m.id)}">M · ${esc(m.title)}</option>`).join('')}
+        `;
 
     const listHtml = filtered.length
       ? filtered
@@ -65,6 +83,7 @@
                 <div class="todo-main">
                   <div class="todo-title">${esc(t.title)}</div>
                   <div class="todo-meta">
+                    ${allMode ? `<span class="proj-mini-tag">${esc(store.projectNameById(t.projectId))}</span>` : ''}
                     ${
                       linked
                         ? `<span class="todo-link-tag" data-open-measure="${esc(linked.id)}" title="點擊檢視對應的 OGSM 行動項目">M · ${esc(linked.title)}</span>`
@@ -93,8 +112,7 @@
       <form class="quick-add-bar" id="todoQuickForm">
         <input type="text" class="input" id="todoTitleInput" placeholder="輸入待辦事項，按 Enter 加入..." required />
         <select class="select" id="todoMeasureSelect" aria-label="關聯項目">
-          <option value="">獨立臨時待辦（不綁 OGSM）</option>
-          ${measureOptionsHtml}
+          ${targetSelectOptionsHtml}
         </select>
         <input type="date" class="input" id="todoDueInput" value="${esc(today)}" aria-label="到期日" />
         <button type="submit" class="btn btn-primary">＋ 加入</button>
@@ -126,11 +144,20 @@
       const titleInput = container.querySelector('#todoTitleInput');
       const title = titleInput.value.trim();
       if (!title) return;
-      const measureId = container.querySelector('#todoMeasureSelect').value || null;
+      const rawTarget = container.querySelector('#todoMeasureSelect').value || '';
+      let targetProjectId = store.defaultWriteProjectId();
+      let measureId = null;
+      if (rawTarget.startsWith('meas:')) {
+        measureId = rawTarget.slice(5);
+        const foundM = measureMap.get(measureId);
+        if (foundM && foundM.projectId) targetProjectId = foundM.projectId;
+      } else if (rawTarget.startsWith('proj:')) {
+        targetProjectId = rawTarget.slice(5) || targetProjectId;
+      }
       const dueDate = container.querySelector('#todoDueInput').value || '';
       await store.saveRecord('todos', {
         id: OGSM.db.uid('todo'),
-        projectId: store.state.currentProjectId,
+        projectId: targetProjectId,
         measureId,
         title,
         dueDate,

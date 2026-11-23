@@ -57,19 +57,31 @@
     const state = store.state;
     const view = state.currentView;
     const meta = VIEW_META[view] || VIEW_META.ogsm;
+    const allMode = store.isAllMode();
     const project = store.currentProject();
     const summary = store.projectSummary();
 
-    // 更新專案下拉選單
+    // 更新專案下拉選單（第一項為「🌐 全部專案總覽」）
     const projSelect = document.getElementById('projectSelect');
-    projSelect.innerHTML = state.data.projects.length
-      ? state.data.projects
+    if (state.data.projects.length) {
+      projSelect.innerHTML =
+        `<option value="${store.ALL_PROJECTS_ID}" ${allMode ? 'selected' : ''}>🌐 總覽：全部專案 (${state.data.projects.length})</option>` +
+        state.data.projects
           .map(
             (p) =>
               `<option value="${esc(p.id)}" ${p.id === state.currentProjectId ? 'selected' : ''}>${esc(p.name)}</option>`
           )
-          .join('')
-      : `<option value="">尚無專案</option>`;
+          .join('');
+    } else {
+      projSelect.innerHTML = `<option value="">尚無專案</option>`;
+    }
+
+    const btnAllToggle = document.getElementById('btnToggleAllMode');
+    if (btnAllToggle) {
+      btnAllToggle.hidden = state.data.projects.length === 0;
+      btnAllToggle.classList.toggle('active', allMode);
+      btnAllToggle.textContent = allMode ? '↩ 返回單一專案檢視' : '🌐 切換全部專案總覽';
+    }
 
     const btnEditProjSide = document.getElementById('btnEditProjectSide');
     if (btnEditProjSide) {
@@ -108,8 +120,19 @@
         : `${summary.measureCount} 項行動 · 進度 ${summary.avgMeasureRate}%`;
 
     // 頂部標題與快速按鈕
-    document.getElementById('pageTitle').textContent = meta.title;
-    document.getElementById('pageSubtitle').textContent = project
+    const ALL_TITLES = {
+      ogsm: '全部專案 OGSM 總覽',
+      gantt: '全部專案總甘特圖',
+      calendar: '全部專案共同行事曆',
+      todo: '全部專案總 To-Do 清單',
+      logs: '跨專案執行時間軸',
+      audit: '全部專案總檢核清單 & 覆盤',
+      database: '全部專案檔案庫 & 資料庫',
+    };
+    document.getElementById('pageTitle').textContent = allMode ? (ALL_TITLES[view] || meta.title) : meta.title;
+    document.getElementById('pageSubtitle').textContent = allMode
+      ? `跨專案共同檢視（共 ${state.data.projects.length} 個專案）— ${meta.subtitle}`
+      : project
       ? `${project.name} — ${meta.subtitle}`
       : meta.subtitle;
 
@@ -136,6 +159,15 @@
     document.getElementById('projectSelect').addEventListener('change', (e) => {
       store.setProject(e.target.value);
     });
+
+    // 一鍵切換「全部專案總覽」模式
+    const btnToggleAll = document.getElementById('btnToggleAllMode');
+    if (btnToggleAll) {
+      btnToggleAll.addEventListener('click', () => {
+        store.toggleAllMode();
+        closeMobileSidebar();
+      });
+    }
 
     // 新增專案
     document.getElementById('btnNewProject').addEventListener('click', () => {

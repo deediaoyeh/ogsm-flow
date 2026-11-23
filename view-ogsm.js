@@ -15,6 +15,89 @@
   function render(container) {
     const store = OGSM.store;
     const { esc } = store;
+
+    // 全部專案總覽模式：呈現所有專案總體規劃一覽表
+    if (store.isAllMode()) {
+      const projects = store.state.data.projects;
+      const summaryAll = store.projectSummary();
+      const q = store.state.searchQuery;
+      const visibleProjects = projects.filter(
+        (p) => !q || (p.name || '').toLowerCase().includes(q) || (p.objective || '').toLowerCase().includes(q)
+      );
+
+      container.innerHTML = `
+        <section class="objective-banner">
+          <div style="flex:1;min-width:0;">
+            <div class="objective-tag">ALL PROJECTS · 全部專案總體規劃</div>
+            <p class="objective-text">共管理 ${projects.length} 個專案 — 可直接切換左側「甘特圖 / 行事曆 / To-Do / 檢核工具」檢視跨專案總表，或點選下方任一專案進入細部 OGSM。</p>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px;">
+            <div class="objective-stats">
+              <div class="stat-mini">
+                <div class="stat-mini-val" style="color:var(--green);">${summaryAll.avgGoalRate}%</div>
+                <div class="stat-mini-label">總 G 達成</div>
+              </div>
+              <div class="stat-mini">
+                <div class="stat-mini-val" style="color:var(--accent);">${summaryAll.avgMeasureRate}%</div>
+                <div class="stat-mini-label">總 M 進度</div>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-primary" id="btnAllNewProj">＋ 新增專案</button>
+          </div>
+        </section>
+
+        <div class="portfolio-grid">
+          ${visibleProjects
+            .map((p) => {
+              const s = store.projectSummary(p.id);
+              const barColor = s.avgGoalRate >= 80 ? 'green' : s.avgGoalRate >= 40 ? '' : 'amber';
+              return `
+                <article class="card portfolio-card" data-enter-project="${esc(p.id)}">
+                  <div class="row-between" style="margin-bottom:8px;">
+                    <h3 style="margin:0;font-size:15.5px;font-weight:600;">${esc(p.name)}</h3>
+                    <span class="pill ${s.overdueMeasures > 0 ? 'red' : 'blue'}">
+                      ${s.overdueMeasures > 0 ? `${s.overdueMeasures} 項逾期` : `${s.measureCount} 項行動`}
+                    </span>
+                  </div>
+                  <p class="muted-text" style="margin:0 0 12px;font-size:13px;line-height:1.6;">
+                    ${esc(p.objective || '尚未填寫目的 O')}
+                  </p>
+                  <div class="progress-track" style="margin-bottom:10px;">
+                    <div class="progress-fill ${barColor}" style="width:${s.avgGoalRate}%"></div>
+                  </div>
+                  <div class="row-between" style="font-size:12px;color:var(--text-secondary);">
+                    <span>G 達成 ${s.avgGoalRate}% · M 進度 ${s.avgMeasureRate}%</span>
+                    <span>待辦 ${s.pendingTodos} · 待檢核 ${s.pendingChecks}</span>
+                  </div>
+                  <div class="row-between" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+                    <span class="muted-text" style="font-size:11.5px;">${esc(p.period || '未設週期')}</span>
+                    <div class="row-gap-xs">
+                      <button type="button" class="btn btn-sm" data-edit-proj-card="${esc(p.id)}" onclick="event.stopPropagation()">編輯</button>
+                      <button type="button" class="btn btn-sm btn-primary" data-enter-project="${esc(p.id)}">進入專案 →</button>
+                    </div>
+                  </div>
+                </article>
+              `;
+            })
+            .join('')}
+        </div>
+      `;
+
+      const btnNew = container.querySelector('#btnAllNewProj');
+      if (btnNew) btnNew.addEventListener('click', () => OGSM.modals.openProjectModal());
+
+      container.querySelectorAll('[data-enter-project]').forEach((el) => {
+        el.addEventListener('click', () => store.setProject(el.dataset.enterProject));
+      });
+      container.querySelectorAll('[data-edit-proj-card]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const p = store.state.data.projects.find((item) => item.id === btn.dataset.editProjCard);
+          if (p) OGSM.modals.openProjectModal(p);
+        });
+      });
+      return;
+    }
+
     const project = store.currentProject();
 
     if (!project) {

@@ -74,9 +74,9 @@
   function render(container) {
     const store = OGSM.store;
     const { esc, safeUrl } = store;
-    const project = store.currentProject();
+    const allMode = store.isAllMode();
 
-    if (!project) {
+    if (!store.hasAnyContext()) {
       container.innerHTML = `<div class="empty-state"><p>請先建立或選擇一個專案。</p></div>`;
       return;
     }
@@ -97,24 +97,28 @@
         ? Math.round((todayDiff + 0.5) * tl.pxPerDay)
         : null;
 
-    // 依 Goal -> Strategy 分組整理 Measure
-    const goals = store.projectGoals();
+    // 依（專案 ->）Goal -> Strategy 分組整理 Measure
+    const projectsToWalk = allMode ? store.state.data.projects : [store.currentProject()].filter(Boolean);
     const groups = [];
-    goals.forEach((g) => {
-      const strategies = store.projectStrategies(g.id);
-      strategies.forEach((s) => {
-        const ms = store.projectMeasures(s.id).filter((m) => {
-          if (!q) return true;
-          const files = store.measureFiles(m.id);
-          return (
-            (m.title || '').toLowerCase().includes(q) ||
-            (s.title || '').toLowerCase().includes(q) ||
-            files.some((f) => (f.name || '').toLowerCase().includes(q))
-          );
+    projectsToWalk.forEach((proj) => {
+      const goals = store.projectGoals(proj.id);
+      goals.forEach((g) => {
+        const strategies = store.projectStrategies(g.id, proj.id);
+        strategies.forEach((s) => {
+          const ms = store.projectMeasures(s.id, proj.id).filter((m) => {
+            if (!q) return true;
+            const files = store.measureFiles(m.id);
+            return (
+              (m.title || '').toLowerCase().includes(q) ||
+              (s.title || '').toLowerCase().includes(q) ||
+              (proj.name || '').toLowerCase().includes(q) ||
+              files.some((f) => (f.name || '').toLowerCase().includes(q))
+            );
+          });
+          if (ms.length > 0) {
+            groups.push({ project: proj, goal: g, strategy: s, measures: ms });
+          }
         });
-        if (ms.length > 0) {
-          groups.push({ goal: g, strategy: s, measures: ms });
-        }
       });
     });
 
@@ -124,7 +128,7 @@
       .filter((m) => !m.strategyId || !store.state.data.strategies.some((s) => s.id === m.strategyId))
       .filter((m) => !q || (m.title || '').toLowerCase().includes(q));
     if (orphanMeasures.length) {
-      groups.push({ goal: null, strategy: { title: '其他行動項目' }, measures: orphanMeasures });
+      groups.push({ project: null, goal: null, strategy: { title: '其他行動項目' }, measures: orphanMeasures });
     }
 
     const headerCellsHtml = tl.columns
@@ -150,11 +154,15 @@
 
     const rowsHtml = groups
       .map((grp) => {
+        const groupTitle =
+          allMode && grp.project
+            ? `【${grp.project.name}】S · ${grp.strategy.title}`
+            : `S · ${grp.strategy.title}`;
         const groupRow = `
           <div class="gantt-row group-row">
             <div class="gantt-left">
-              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                S · ${esc(grp.strategy.title)}
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(groupTitle)}">
+                ${esc(groupTitle)}
               </span>
             </div>
             <div class="gantt-right" style="width:${tl.totalWidth}px;">

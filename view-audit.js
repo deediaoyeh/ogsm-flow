@@ -10,12 +10,14 @@
   function render(container) {
     const store = OGSM.store;
     const { esc } = store;
-    const project = store.currentProject();
+    const allMode = store.isAllMode();
 
-    if (!project) {
+    if (!store.hasAnyContext()) {
       container.innerHTML = `<div class="empty-state"><p>請先建立或選擇一個專案。</p></div>`;
       return;
     }
+
+    const pTag = (pid) => (allMode ? `<span class="proj-mini-tag">${esc(store.projectNameById(pid))}</span>` : '');
 
     const q = store.state.searchQuery;
     const chkFilter = store.state.auditChecklistFilter;
@@ -53,8 +55,11 @@
           <div class="checklist-group">
             <div class="checklist-group-head">
               <div style="min-width:0;flex:1;">
-                <div class="checklist-group-title" data-open-measure="${esc(m.id)}">
-                  M · ${esc(m.title)}
+                <div class="row-gap-xs" style="flex-wrap:wrap;">
+                  ${pTag(m.projectId)}
+                  <div class="checklist-group-title" data-open-measure="${esc(m.id)}">
+                    M · ${esc(m.title)}
+                  </div>
                 </div>
                 ${
                   files.length
@@ -113,7 +118,7 @@
               }
             </div>
 
-            <form class="checklist-add-inline" data-add-check-form="${esc(m.id)}">
+            <form class="checklist-add-inline" data-add-check-form="${esc(m.id)}" data-project-id="${esc(m.projectId)}">
               <input type="text" class="input" style="padding:6px 10px;font-size:12.5px;"
                      placeholder="新增驗收檢核點，按 Enter..." />
               <button type="submit" class="btn btn-sm">＋</button>
@@ -141,7 +146,8 @@
             (r) => `
             <article class="review-card">
               <div class="row-between">
-                <div class="row-gap-xs">
+                <div class="row-gap-xs" style="flex-wrap:wrap;">
+                  ${pTag(r.projectId)}
                   <span class="pill ${r.periodType === 'monthly' ? 'blue' : 'green'}">
                     ${r.periodType === 'monthly' ? '月覆盤' : '週覆盤'}
                   </span>
@@ -292,10 +298,11 @@
         const text = input.value.trim();
         if (!text) return;
         const measureId = form.dataset.addCheckForm;
+        const ownerProjectId = form.dataset.projectId || store.defaultWriteProjectId();
         const existing = store.measureChecklists(measureId);
         await store.saveRecord('checklists', {
           id: OGSM.db.uid('chk'),
-          projectId: store.state.currentProjectId,
+          projectId: ownerProjectId,
           measureId,
           text,
           checked: false,

@@ -14,6 +14,7 @@
     const store = OGSM.store;
     const { esc, safeUrl } = store;
     const data = store.state.data;
+    const allMode = store.isAllMode();
     const project = store.currentProject();
     const q = store.state.searchQuery;
     const measures = store.projectMeasures();
@@ -78,6 +79,7 @@
                 </td>
                 <td><span class="pill">${meta.label}</span></td>
                 <td>
+                  ${allMode && f.projectId ? `<span class="proj-mini-tag" style="margin-right:5px;">${esc(store.projectNameById(f.projectId))}</span>` : ''}
                   ${
                     !f.projectId
                       ? `<span class="pill amber">已留存（原專案已刪）</span>`
@@ -137,8 +139,8 @@
         <div class="section-header">
           <div class="row-gap-sm" style="flex-wrap:wrap;">
             <div>
-              <h2 class="section-title">${project ? `「${esc(project.name)}」專屬檔案庫` : '專案 Google Drive 檔案庫'} (${files.length})</h2>
-              <div class="muted-text" style="font-size:11.5px;">僅顯示此專案的檔案連結，切換專案自動獨立隔離</div>
+              <h2 class="section-title">${allMode ? '全部專案 Google Drive 檔案總庫' : project ? `「${esc(project.name)}」專屬檔案庫` : '專案 Google Drive 檔案庫'} (${files.length})</h2>
+              <div class="muted-text" style="font-size:11.5px;">${allMode ? '跨專案總覽所有 Google Drive 檔案連結' : '僅顯示此專案的檔案連結，切換專案自動獨立隔離'}</div>
             </div>
             <div class="seg-tabs">
               <button class="seg-tab ${fileTypeFilter === 'all' ? 'active' : ''}" data-ftype="all">全部</button>
