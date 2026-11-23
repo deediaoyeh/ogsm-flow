@@ -236,7 +236,7 @@
           </div>
           <div class="row-gap-xs" style="flex-wrap:wrap;justify-content:flex-end;">
             <button class="btn btn-sm btn-danger" id="btnDeleteProjectOgsm">刪除專案</button>
-            <button class="btn btn-sm" id="btnEditProject">編輯目的 O</button>
+            <button class="btn btn-sm" id="btnEditProject">編輯專案 / O</button>
             <button class="btn btn-sm btn-primary" id="btnAddGoal">＋ 新增目標 G</button>
           </div>
         </div>

@@ -71,6 +71,11 @@
           .join('')
       : `<option value="">尚無專案</option>`;
 
+    const btnEditProjSide = document.getElementById('btnEditProjectSide');
+    if (btnEditProjSide) {
+      btnEditProjSide.hidden = !project;
+    }
+
     const btnDeleteProj = document.getElementById('btnDeleteProject');
     if (btnDeleteProj) {
       btnDeleteProj.hidden = !project;
@@ -136,6 +141,15 @@
     document.getElementById('btnNewProject').addEventListener('click', () => {
       OGSM.modals.openProjectModal();
     });
+
+    // 編輯目前專案（名稱、目的 O、週期）
+    const btnEditProjSide = document.getElementById('btnEditProjectSide');
+    if (btnEditProjSide) {
+      btnEditProjSide.addEventListener('click', () => {
+        const proj = store.currentProject();
+        if (proj) OGSM.modals.openProjectModal(proj);
+      });
+    }
 
     // 刪除目前專案
     const btnDelProj = document.getElementById('btnDeleteProject');
