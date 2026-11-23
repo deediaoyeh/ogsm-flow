@@ -44,6 +44,9 @@
     const files = store.measureFiles(m.id);
     const checks = store.measureChecklists(m.id);
     const linkedTodos = store.state.data.todos.filter((t) => t.measureId === m.id);
+    const linkedLogs = store.projectLogs().filter(
+      (l) => l.measureId === m.id || (l.ogsmType === 'measure' && l.ogsmId === m.id)
+    );
     const strategies = store.projectStrategies();
 
     const pill = document.getElementById('drawerStatusPill');
@@ -198,6 +201,31 @@
           <button type="submit" class="btn btn-sm">＋</button>
         </form>
       </div>
+
+      <!-- 關聯工作日誌 -->
+      <div class="drawer-section">
+        <h3 class="drawer-section-title">
+          <span>關聯工作日誌 (${linkedLogs.length})</span>
+          <button type="button" class="btn-ghost-xs" id="btnDrawerCreateLog">＋ 寫日誌</button>
+        </h3>
+        <div class="checklist-items">
+          ${
+            linkedLogs.length
+              ? linkedLogs
+                  .map(
+                    (l) => `
+                    <button type="button" class="checklist-row" style="width:100%;border:none;text-align:left;cursor:pointer;" data-drawer-open-log="${esc(l.id)}">
+                      <span class="pill blue" style="font-size:10.5px;">${esc(l.date)}</span>
+                      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(l.title || '工作紀錄')}</span>
+                      <span class="muted-text" style="font-size:11px;">查看 ↗</span>
+                    </button>
+                  `
+                  )
+                  .join('')
+              : `<div class="muted-text" style="font-size:12px;">尚無關聯工作日誌，點右上角「＋ 寫日誌」可記錄今日進展。</div>`
+          }
+        </div>
+      </div>
     `;
 
     // 綁定滑桿即時數字
@@ -309,6 +337,22 @@
       btn.addEventListener('click', async () => {
         const t = store.state.data.todos.find((item) => item.id === btn.dataset.drawerTodo);
         if (t) await store.saveRecord('todos', { ...t, completed: !t.completed });
+      });
+    });
+
+    // 關聯工作日誌操作
+    const btnDrawerCreateLog = body.querySelector('#btnDrawerCreateLog');
+    if (btnDrawerCreateLog) {
+      btnDrawerCreateLog.addEventListener('click', async () => {
+        closeDrawer();
+        await OGSM.views.logs.createNewLog({ ogsmType: 'measure', ogsmId: m.id, measureId: m.id });
+        store.setView('logs');
+      });
+    }
+    body.querySelectorAll('[data-drawer-open-log]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        closeDrawer();
+        OGSM.views.logs.openLogById(btn.dataset.drawerOpenLog);
       });
     });
   }

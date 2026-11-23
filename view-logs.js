@@ -1,5 +1,5 @@
 /* ============================================================
-   view-logs.js — 工作日誌（依日期紀錄 + 內建視覺化 / HTML 原始碼編輯器）
+   view-logs.js — 工作日誌（依日期紀錄 + HTML 編輯器 + OGSM & 檢核工具選填關聯）
    ============================================================ */
 (function (global) {
   'use strict';
@@ -55,15 +55,48 @@
     return text.length > 70 ? text.slice(0, 70) + '…' : text || '（尚無內容）';
   }
 
-  async function createNewLog() {
+  // 解析日誌的 OGSM 關聯（向後相容舊版 measureId）
+  function getLogOgsmRef(log) {
+    if (log.ogsmType && log.ogsmId) {
+      return { type: log.ogsmType, id: log.ogsmId };
+    }
+    if (log.measureId) {
+      return { type: 'measure', id: log.measureId };
+    }
+    return null;
+  }
+
+  function resolveOgsmLabel(ref, goalMap, stratMap, measMap) {
+    if (!ref) return null;
+    if (ref.type === 'goal' && goalMap.has(ref.id)) {
+      return { prefix: 'G', title: goalMap.get(ref.id).title, type: 'goal', id: ref.id };
+    }
+    if (ref.type === 'strategy' && stratMap.has(ref.id)) {
+      return { prefix: 'S', title: stratMap.get(ref.id).title, type: 'strategy', id: ref.id };
+    }
+    if (ref.type === 'measure' && measMap.has(ref.id)) {
+      return { prefix: 'M', title: measMap.get(ref.id).title, type: 'measure', id: ref.id };
+    }
+    return null;
+  }
+
+  async function createNewLog(preset) {
     const store = OGSM.store;
     const today = store.todayStr();
+    const opts = preset || {};
+    const ogsmType = opts.ogsmType || (opts.measureId ? 'measure' : null);
+    const ogsmId = opts.ogsmId || opts.measureId || null;
+
     const newLog = {
       id: OGSM.db.uid('log'),
       projectId: store.state.currentProjectId,
       date: today,
-      title: '',
-      measureId: null,
+      title: opts.title || '',
+      measureId: ogsmType === 'measure' ? ogsmId : null,
+      ogsmType,
+      ogsmId,
+      checklistIds: Array.isArray(opts.checklistIds) ? opts.checklistIds : [],
+      reviewIds: Array.isArray(opts.reviewIds) ? opts.reviewIds : [],
       contentHtml: '<p></p>',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -72,6 +105,12 @@
     store.state.activeLogId = newLog.id;
     await store.saveRecord('logs', newLog);
     store.toast(`已建立 ${today} 工作日誌`);
+  }
+
+  function openLogById(logId) {
+    const store = OGSM.store;
+    store.state.activeLogId = logId;
+    store.setView('logs');
   }
 
   function render(container) {
@@ -85,21 +124,32 @@
     }
 
     const q = store.state.searchQuery;
+    const goals = store.projectGoals();
+    const strategies = store.projectStrategies();
     const measures = store.projectMeasures();
-    const measureMap = new Map(measures.map((m) => [m.id, m]));
+    const checklists = store.projectChecklists();
+    const reviews = store.projectReviews();
+
+    const goalMap = new Map(goals.map((g) => [g.id, g]));
+    const stratMap = new Map(strategies.map((s) => [s.id, s]));
+    const measMap = new Map(measures.map((m) => [m.id, m]));
+    const checkMap = new Map(checklists.map((c) => [c.id, c]));
+    const reviewMap = new Map(reviews.map((r) => [r.id, r]));
+
     const allLogs = store.projectLogs();
 
     const filteredLogs = allLogs.filter((l) => {
       if (!q) return true;
       const plain = stripToPreview(l.contentHtml).toLowerCase();
+      const ogsmInfo = resolveOgsmLabel(getLogOgsmRef(l), goalMap, stratMap, measMap);
       return (
         (l.date || '').toLowerCase().includes(q) ||
         (l.title || '').toLowerCase().includes(q) ||
-        plain.includes(q)
+        plain.includes(q) ||
+        (ogsmInfo && ogsmInfo.title.toLowerCase().includes(q))
       );
     });
 
-    // 自動選取目前作用中的日誌（或最新一筆）
     let activeLog =
       filteredLogs.find((l) => l.id === store.state.activeLogId) ||
       filteredLogs[0] ||
@@ -112,14 +162,22 @@
       ? filteredLogs
           .map((l) => {
             const isActive = activeLog && l.id === activeLog.id;
-            const linked = l.measureId ? measureMap.get(l.measureId) : null;
+            const ogsmInfo = resolveOgsmLabel(getLogOgsmRef(l), goalMap, stratMap, measMap);
+            const linkedCheckCount = (l.checklistIds || []).filter((id) => checkMap.has(id)).length;
+            const linkedRevCount = (l.reviewIds || []).filter((id) => reviewMap.has(id)).length;
+            const auditTotal = linkedCheckCount + linkedRevCount;
             return `
               <button type="button" class="log-list-item ${isActive ? 'active' : ''}" data-select-log="${esc(l.id)}">
                 <div class="log-item-top">
                   <span class="pill ${isActive ? 'blue' : ''}" style="font-variant-numeric:tabular-nums;">${esc(l.date || '未設日期')}</span>
-                  ${linked ? `<span class="muted-text" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">M · ${esc(linked.title)}</span>` : ''}
+                  ${auditTotal > 0 ? `<span class="pill amber" style="font-size:10.5px;">✦ 檢核 ${auditTotal}</span>` : ''}
                 </div>
                 <div class="log-item-title">${esc(l.title || `${l.date} 工作紀錄`)}</div>
+                ${
+                  ogsmInfo
+                    ? `<div class="muted-text" style="font-size:11px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ogsmInfo.prefix} · ${esc(ogsmInfo.title)}</div>`
+                    : ''
+                }
                 <div class="log-item-preview">${esc(stripToPreview(l.contentHtml))}</div>
               </button>
             `;
@@ -130,31 +188,141 @@
           ${!q ? '<button class="btn btn-primary btn-sm" id="btnEmptyNewLog">＋ 新增今日紀錄</button>' : ''}
         </div>`;
 
-    const editorHtml = activeLog
-      ? `
+    let editorHtml = '';
+    if (activeLog) {
+      const activeOgsm = getLogOgsmRef(activeLog);
+      const activeOgsmVal = activeOgsm ? `${activeOgsm.type}:${activeOgsm.id}` : '';
+      const activeChecklistIds = (activeLog.checklistIds || []).filter((id) => checkMap.has(id));
+      const activeReviewIds = (activeLog.reviewIds || []).filter((id) => reviewMap.has(id));
+
+      // 已關聯的檢核項目與覆盤膠囊
+      const auditChipsHtml = [
+        ...activeChecklistIds.map((cid) => {
+          const chk = checkMap.get(cid);
+          const parentM = chk && measMap.get(chk.measureId);
+          return `
+            <span class="log-audit-chip ${chk.checked ? 'done' : ''}">
+              <button type="button" class="checkbox-round ${chk.checked ? 'checked' : ''}"
+                      style="width:15px;height:15px;font-size:10px;"
+                      data-log-toggle-chk="${esc(cid)}"
+                      title="切換檢核項完成狀態">${chk.checked ? '✓' : ''}</button>
+              <span class="log-audit-chip-text" title="${esc(chk.text)}${parentM ? '（M: ' + esc(parentM.title) + '）' : ''}">
+                清單：${esc(chk.text)}
+              </span>
+              <button type="button" class="chip-remove" data-unlink-chk="${esc(cid)}" title="取消關聯">✕</button>
+            </span>
+          `;
+        }),
+        ...activeReviewIds.map((rid) => {
+          const rev = reviewMap.get(rid);
+          return `
+            <span class="log-audit-chip review">
+              <button type="button" class="chip-jump" data-jump-audit title="前往檢核工具查看此覆盤">
+                ✦ ${rev.periodType === 'monthly' ? '月覆盤' : '週覆盤'}：${esc(rev.periodLabel)}
+              </button>
+              <button type="button" class="chip-remove" data-unlink-rev="${esc(rid)}" title="取消關聯">✕</button>
+            </span>
+          `;
+        }),
+      ].join('');
+
+      editorHtml = `
         <div class="log-editor-card">
           <div class="log-meta-bar">
             <div class="form-field" style="width:155px;flex-shrink:0;">
               <label for="logDateInput">紀錄日期</label>
               <input type="date" id="logDateInput" class="input" value="${esc(activeLog.date || store.todayStr())}" required />
             </div>
-            <div class="form-field" style="flex:1;min-width:160px;">
+            <div class="form-field" style="flex:1;min-width:180px;">
               <label for="logTitleInput">今日主題（選填）</label>
               <input type="text" id="logTitleInput" class="input" value="${esc(activeLog.title || '')}" placeholder="例如：完成客戶簡報初稿、討論排程調整..." />
             </div>
-            <div class="form-field" style="width:200px;flex-shrink:0;">
-              <label for="logMeasureSelect">關聯行動 M（選填）</label>
-              <select id="logMeasureSelect" class="select">
-                <option value="">不特別綁定</option>
-                ${measures
-                  .map(
-                    (m) =>
-                      `<option value="${esc(m.id)}" ${m.id === activeLog.measureId ? 'selected' : ''}>M · ${esc(m.title)}</option>`
-                  )
-                  .join('')}
+          </div>
+
+          <!-- 選填關聯區：OGSM (G / S / M) ＋ 檢核工具 (Checklist / 定期覆盤) -->
+          <div class="log-links-bar">
+            <div class="form-field" style="flex:1;min-width:200px;">
+              <label for="logOgsmSelect">關聯 OGSM（選填：目標 G / 策略 S / 行動 M）</label>
+              <select id="logOgsmSelect" class="select">
+                <option value="">不綁定 OGSM</option>
+                ${
+                  goals.length
+                    ? `<optgroup label="目標 G">
+                        ${goals
+                          .map(
+                            (g) =>
+                              `<option value="goal:${esc(g.id)}" ${activeOgsmVal === `goal:${g.id}` ? 'selected' : ''}>G · ${esc(g.title)}</option>`
+                          )
+                          .join('')}
+                      </optgroup>`
+                    : ''
+                }
+                ${
+                  strategies.length
+                    ? `<optgroup label="策略 S">
+                        ${strategies
+                          .map(
+                            (s) =>
+                              `<option value="strategy:${esc(s.id)}" ${activeOgsmVal === `strategy:${s.id}` ? 'selected' : ''}>S · ${esc(s.title)}</option>`
+                          )
+                          .join('')}
+                      </optgroup>`
+                    : ''
+                }
+                ${
+                  measures.length
+                    ? `<optgroup label="行動計畫 M">
+                        ${measures
+                          .map(
+                            (m) =>
+                              `<option value="measure:${esc(m.id)}" ${activeOgsmVal === `measure:${m.id}` ? 'selected' : ''}>M · ${esc(m.title)}</option>`
+                          )
+                          .join('')}
+                      </optgroup>`
+                    : ''
+                }
+              </select>
+            </div>
+
+            <div class="form-field" style="flex:1;min-width:200px;">
+              <label for="logAuditAddSelect">關聯檢核工具（選填，可多選加入）</label>
+              <select id="logAuditAddSelect" class="select">
+                <option value="">＋ 選擇檢核清單項或覆盤表...</option>
+                ${
+                  checklists.length
+                    ? `<optgroup label="任務檢核清單（Checklist）">
+                        ${checklists
+                          .filter((c) => !activeChecklistIds.includes(c.id))
+                          .map((c) => {
+                            const pm = measMap.get(c.measureId);
+                            return `<option value="check:${esc(c.id)}">${c.checked ? '✓ ' : '○ '}${esc(c.text)}${pm ? '（' + esc(pm.title) + '）' : ''}</option>`;
+                          })
+                          .join('')}
+                      </optgroup>`
+                    : ''
+                }
+                ${
+                  reviews.length
+                    ? `<optgroup label="週／月定期覆盤表">
+                        ${reviews
+                          .filter((r) => !activeReviewIds.includes(r.id))
+                          .map(
+                            (r) =>
+                              `<option value="review:${esc(r.id)}">✦ ${esc(r.periodLabel)} (${esc(r.reviewDate)})</option>`
+                          )
+                          .join('')}
+                      </optgroup>`
+                    : ''
+                }
               </select>
             </div>
           </div>
+
+          ${
+            auditChipsHtml
+              ? `<div class="log-link-chips">${auditChipsHtml}</div>`
+              : ''
+          }
 
           <!-- HTML 編輯器工具列 -->
           <div class="html-toolbar" role="toolbar" aria-label="HTML 編輯工具列">
@@ -203,16 +371,23 @@
               ${activeLog.updatedAt ? `上次更新：${new Date(activeLog.updatedAt).toLocaleString('zh-Hant')}` : ''}
             </span>
             <div class="row-gap-xs">
+              ${
+                activeOgsm && activeOgsm.type === 'measure' && measMap.has(activeOgsm.id)
+                  ? `<button type="button" class="btn btn-sm" id="btnOpenLinkedMeasure">檢視關聯 M</button>`
+                  : ''
+              }
               <button type="button" class="btn btn-sm btn-danger" id="btnDeleteLog">刪除這筆</button>
               <button type="button" class="btn btn-sm btn-primary" id="btnSaveLog">儲存日誌</button>
             </div>
           </div>
         </div>
-      `
-      : `<div class="empty-state">
-          <p>點擊左上方「＋ 新增日誌」建立一筆有日期的工作紀錄。</p>
-          <button class="btn btn-primary" id="btnEmptyCenterNewLog">＋ 新增工作日誌</button>
-        </div>`;
+      `;
+    } else {
+      editorHtml = `<div class="empty-state">
+        <p>點擊左上方「＋ 新增」建立一筆有日期的工作紀錄。</p>
+        <button class="btn btn-primary" id="btnEmptyCenterNewLog">＋ 新增工作日誌</button>
+      </div>`;
+    }
 
     container.innerHTML = `
       <div class="logs-layout">
@@ -238,7 +413,7 @@
     // 新增日誌按鈕
     ['#btnNewLog', '#btnEmptyNewLog', '#btnEmptyCenterNewLog'].forEach((sel) => {
       const btn = container.querySelector(sel);
-      if (btn) btn.addEventListener('click', createNewLog);
+      if (btn) btn.addEventListener('click', () => createNewLog());
     });
 
     // 切換選取日誌
@@ -254,10 +429,116 @@
     const visualEl = container.querySelector('#logVisualEditor');
     const sourceEl = container.querySelector('#logSourceEditor');
 
+    // 讀取目前表單中未按儲存的欄位草稿（在新增/移除檢核膠囊時不遺失使用者剛打的字！）
+    function collectDraftFields() {
+      const dateVal = container.querySelector('#logDateInput').value || store.todayStr();
+      const titleVal = container.querySelector('#logTitleInput').value.trim();
+      const ogsmRaw = container.querySelector('#logOgsmSelect').value;
+      let ogsmType = null;
+      let ogsmId = null;
+      if (ogsmRaw && ogsmRaw.includes(':')) {
+        const parts = ogsmRaw.split(':');
+        ogsmType = parts[0];
+        ogsmId = parts.slice(1).join(':');
+      }
+      const rawHtml = isSourceMode ? sourceEl.value : visualEl.innerHTML;
+      return {
+        date: dateVal,
+        title: titleVal,
+        ogsmType,
+        ogsmId,
+        measureId: ogsmType === 'measure' ? ogsmId : null,
+        contentHtml: sanitizeHtml(rawHtml),
+      };
+    }
+
+    // 立即加入一個檢核工具項目（Checklist 或 Review）
+    const auditSelect = container.querySelector('#logAuditAddSelect');
+    if (auditSelect) {
+      auditSelect.addEventListener('change', async () => {
+        const val = auditSelect.value;
+        if (!val) return;
+        const draft = collectDraftFields();
+        const checklistIds = Array.from(new Set(activeLog.checklistIds || []));
+        const reviewIds = Array.from(new Set(activeLog.reviewIds || []));
+        if (val.startsWith('check:')) {
+          const cid = val.slice(6);
+          if (!checklistIds.includes(cid)) checklistIds.push(cid);
+        } else if (val.startsWith('review:')) {
+          const rid = val.slice(7);
+          if (!reviewIds.includes(rid)) reviewIds.push(rid);
+        }
+        await store.saveRecord('logs', {
+          ...activeLog,
+          ...draft,
+          checklistIds,
+          reviewIds,
+          updatedAt: new Date().toISOString(),
+        });
+        store.toast('已關聯檢核工具項目');
+      });
+    }
+
+    // 在日誌內直接勾選已關聯的 Checklist 項目
+    container.querySelectorAll('[data-log-toggle-chk]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const item = store.state.data.checklists.find((c) => c.id === btn.dataset.logToggleChk);
+        if (!item) return;
+        // 先保留目前剛打的編輯器草稿再切換勾選
+        const draft = collectDraftFields();
+        await store.saveRecord('logs', { ...activeLog, ...draft, updatedAt: new Date().toISOString() });
+        await store.saveRecord('checklists', { ...item, checked: !item.checked });
+      });
+    });
+
+    // 取消關聯 Checklist
+    container.querySelectorAll('[data-unlink-chk]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const cid = btn.dataset.unlinkChk;
+        const draft = collectDraftFields();
+        const checklistIds = (activeLog.checklistIds || []).filter((id) => id !== cid);
+        await store.saveRecord('logs', {
+          ...activeLog,
+          ...draft,
+          checklistIds,
+          updatedAt: new Date().toISOString(),
+        });
+      });
+    });
+
+    // 取消關聯 Review
+    container.querySelectorAll('[data-unlink-rev]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const rid = btn.dataset.unlinkRev;
+        const draft = collectDraftFields();
+        const reviewIds = (activeLog.reviewIds || []).filter((id) => id !== rid);
+        await store.saveRecord('logs', {
+          ...activeLog,
+          ...draft,
+          reviewIds,
+          updatedAt: new Date().toISOString(),
+        });
+      });
+    });
+
+    // 跳往檢核工具
+    container.querySelectorAll('[data-jump-audit]').forEach((btn) => {
+      btn.addEventListener('click', () => store.setView('audit'));
+    });
+
+    // 檢視關聯 M 抽屜
+    const btnOpenLinkedM = container.querySelector('#btnOpenLinkedMeasure');
+    if (btnOpenLinkedM) {
+      btnOpenLinkedM.addEventListener('click', () => {
+        const ref = getLogOgsmRef(activeLog);
+        if (ref && ref.type === 'measure') OGSM.drawer.open(ref.id);
+      });
+    }
+
     // 工具列指令
     container.querySelectorAll('.tool-btn[data-cmd]').forEach((btn) => {
       btn.addEventListener('mousedown', (e) => {
-        e.preventDefault(); // 避免失去選取範圍焦點
+        e.preventDefault();
         if (isSourceMode) return;
         visualEl.focus();
         const cmd = btn.dataset.cmd;
@@ -310,28 +591,21 @@
       });
     }
 
-    // 儲存日誌（同時觸發 Google Drive 自動同步）
+    // 儲存日誌
     async function saveActiveLog() {
-      const dateVal = container.querySelector('#logDateInput').value || store.todayStr();
-      const titleVal = container.querySelector('#logTitleInput').value.trim();
-      const measureVal = container.querySelector('#logMeasureSelect').value || null;
-      const rawHtml = isSourceMode ? sourceEl.value : visualEl.innerHTML;
-      const cleanHtml = sanitizeHtml(rawHtml);
-
+      const draft = collectDraftFields();
       await store.saveRecord('logs', {
         ...activeLog,
-        date: dateVal,
-        title: titleVal,
-        measureId: measureVal,
-        contentHtml: cleanHtml,
+        ...draft,
+        checklistIds: activeLog.checklistIds || [],
+        reviewIds: activeLog.reviewIds || [],
         updatedAt: new Date().toISOString(),
       });
-      store.toast(`已儲存 ${dateVal} 工作日誌`);
+      store.toast(`已儲存 ${draft.date} 工作日誌`);
     }
 
     container.querySelector('#btnSaveLog').addEventListener('click', saveActiveLog);
 
-    // 快捷鍵 Cmd/Ctrl + S 儲存
     const onKeySave = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
@@ -350,5 +624,5 @@
     });
   }
 
-  OGSM.views.logs = { render, createNewLog };
+  OGSM.views.logs = { render, createNewLog, openLogById };
 })(window);

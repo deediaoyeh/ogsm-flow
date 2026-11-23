@@ -21,6 +21,7 @@
     const chkFilter = store.state.auditChecklistFilter;
     const measures = store.projectMeasures();
     const reviews = store.projectReviews();
+    const logs = store.projectLogs();
     const summary = store.projectSummary();
 
     // 左欄：依 M 分組呈現檢核清單
@@ -70,18 +71,28 @@
               ${
                 visibleItems.length
                   ? visibleItems
-                      .map(
-                        (c) => `
+                      .map((c) => {
+                        const chkLogs = logs.filter((l) => (l.checklistIds || []).includes(c.id));
+                        return `
                         <div class="checklist-row ${c.checked ? 'done' : ''}">
                           <button class="checkbox-round ${c.checked ? 'checked' : ''}"
                                   data-toggle-check="${esc(c.id)}"
                                   aria-label="勾選檢核項">${c.checked ? '✓' : ''}</button>
                           <span style="flex:1;">${esc(c.text)}</span>
+                          ${
+                            chkLogs.length
+                              ? `<button type="button" class="todo-link-tag" style="border:none;"
+                                         data-jump-log="${esc(chkLogs[0].id)}"
+                                         title="查看關聯工作日誌（${esc(chkLogs[0].date)}）">
+                                  ✎ ${chkLogs.length > 1 ? `${chkLogs.length} 筆日誌` : esc(store.shortDate(chkLogs[0].date))}
+                                </button>`
+                              : ''
+                          }
                           <button class="btn-icon danger" style="width:24px;height:24px;font-size:12px;"
                                   data-del-check="${esc(c.id)}" title="刪除">✕</button>
                         </div>
-                      `
-                      )
+                      `;
+                      })
                       .join('')
                   : `<div class="muted-text" style="font-size:12px;padding:4px 2px;">尚無檢核條件，可在下方直接新增。</div>`
               }
@@ -167,6 +178,27 @@
                     </div>`
                   : ''
               }
+              ${(() => {
+                const revLogs = logs.filter((l) => (l.reviewIds || []).includes(r.id));
+                if (!revLogs.length) return '';
+                return `
+                  <div class="review-section">
+                    <div class="review-section-label">關聯工作日誌 (${revLogs.length})</div>
+                    <div class="log-link-chips">
+                      ${revLogs
+                        .map(
+                          (l) => `
+                          <button type="button" class="todo-link-tag" style="border:none;padding:3px 9px;"
+                                  data-jump-log="${esc(l.id)}">
+                            ✎ ${esc(l.date)} · ${esc(l.title || '工作紀錄')}
+                          </button>
+                        `
+                        )
+                        .join('')}
+                    </div>
+                  </div>
+                `;
+              })()}
             </article>
           `
           )
@@ -257,6 +289,10 @@
 
     container.querySelectorAll('[data-open-measure]').forEach((el) => {
       el.addEventListener('click', () => OGSM.drawer.open(el.dataset.openMeasure));
+    });
+
+    container.querySelectorAll('[data-jump-log]').forEach((el) => {
+      el.addEventListener('click', () => OGSM.views.logs.openLogById(el.dataset.jumpLog));
     });
 
     const btnNewReview = container.querySelector('#btnNewReview');

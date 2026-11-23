@@ -423,6 +423,10 @@
           date: offsetDate(0),
           title: '完成專案管理系統上線與功能盤點',
           measureId: m2,
+          ogsmType: 'measure',
+          ogsmId: m2,
+          checklistIds: ['chk_3'],
+          reviewIds: ['rev_demo_1'],
           contentHtml:
             '<h3>今日重點進展</h3><ul><li>確認 <strong>OGSM 藍圖</strong> 與 <strong>日／週甘特圖</strong> 排程資料正確連動</li><li>整理 Google Drive 檔案連結至檔案庫</li></ul><blockquote><p>備註：明天開始集中整理種子用戶訪談問題清單。</p></blockquote>',
           createdAt: new Date().toISOString(),
