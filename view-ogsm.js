@@ -39,18 +39,20 @@
       if (!logs || !logs.length) return '';
       return `
         <div class="related-logs-strip" onclick="event.stopPropagation()">
-          <span class="related-logs-label">${esc(label || '相關日誌')}</span>
+          <span class="related-logs-label">${esc(label || '相關工作日誌')}</span>
           <div class="related-logs-list">
             ${logs
-              .map(
-                (l) => `
+              .map((l) => {
+                const topic = (l.title || '').trim() || `未命名主題（${l.date || '無日期'}）`;
+                return `
                 <button type="button" class="log-title-pill" data-jump-log="${esc(l.id)}"
-                        title="點擊前往工作日誌：${esc(l.date)} ${esc(l.title || '工作紀錄')}">
+                        title="點擊進入工作日誌：${esc(topic)}（${esc(l.date || '')}）">
+                  <span class="log-pill-icon" aria-hidden="true">✎</span>
+                  <span class="log-pill-title">${esc(topic)}</span>
                   <span class="log-pill-date">${esc(store.shortDate(l.date))}</span>
-                  <span class="log-pill-title">${esc(l.title || `${l.date} 工作紀錄`)}</span>
                 </button>
-              `
-              )
+              `;
+              })
               .join('')}
           </div>
         </div>
@@ -123,7 +125,7 @@
                             ${checks.length ? `✓ ${doneChecks}/${checks.length}` : '—'}
                           </div>
                         </div>
-                        ${renderRelatedLogsRow(measureLogs, '✎ 日誌')}
+                        ${renderRelatedLogsRow(measureLogs, '相關日誌')}
                       </div>
                     `;
                   })
@@ -149,7 +151,7 @@
                     <button class="btn-icon" data-edit-strategy="${esc(strat.id)}" title="編輯策略">✎</button>
                   </div>
                 </div>
-                ${renderRelatedLogsRow(stratLogs, '✎ 策略相關日誌')}
+                ${renderRelatedLogsRow(stratLogs, '相關日誌')}
                 <div class="measure-rows">${measuresHtml}</div>
               </div>
             `;
@@ -191,7 +193,7 @@
                 <button class="btn-icon" data-edit-goal="${esc(goal.id)}" title="編輯目標">✎</button>
               </div>
             </div>
-            ${goalLogs.length ? `<div style="padding:10px 18px 0;">${renderRelatedLogsRow(goalLogs, '✎ 目標相關日誌')}</div>` : ''}
+            ${goalLogs.length ? `<div style="padding:10px 18px 0;">${renderRelatedLogsRow(goalLogs, '相關日誌')}</div>` : ''}
             <div class="strategy-list">
               ${
                 strategiesHtml ||

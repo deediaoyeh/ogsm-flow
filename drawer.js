@@ -212,15 +212,16 @@
           ${
             linkedLogs.length
               ? linkedLogs
-                  .map(
-                    (l) => `
+                  .map((l) => {
+                    const topic = (l.title || '').trim() || `未命名主題（${l.date || '無日期'}）`;
+                    return `
                     <button type="button" class="checklist-row" style="width:100%;border:none;text-align:left;cursor:pointer;" data-drawer-open-log="${esc(l.id)}">
-                      <span class="pill blue" style="font-size:10.5px;">${esc(l.date)}</span>
-                      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(l.title || '工作紀錄')}</span>
-                      <span class="muted-text" style="font-size:11px;">查看 ↗</span>
+                      <span style="color:var(--accent);font-size:12px;">✎</span>
+                      <span style="flex:1;font-weight:500;">${esc(topic)}</span>
+                      <span class="pill" style="font-size:10.5px;">${esc(store.shortDate(l.date))}</span>
                     </button>
-                  `
-                  )
+                  `;
+                  })
                   .join('')
               : `<div class="muted-text" style="font-size:12px;">尚無關聯工作日誌，點右上角「＋ 寫日誌」可記錄今日進展。</div>`
           }

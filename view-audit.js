@@ -86,18 +86,20 @@
                           ${
                             chkLogs.length
                               ? `<div class="related-logs-strip compact">
-                                  <span class="related-logs-label">✎ 日誌</span>
+                                  <span class="related-logs-label">相關日誌</span>
                                   <div class="related-logs-list">
                                     ${chkLogs
-                                      .map(
-                                        (l) => `
+                                      .map((l) => {
+                                        const topic = (l.title || '').trim() || `未命名主題（${l.date || '無日期'}）`;
+                                        return `
                                         <button type="button" class="log-title-pill" data-jump-log="${esc(l.id)}"
-                                                title="點擊前往工作日誌：${esc(l.date)} ${esc(l.title || '工作紀錄')}">
+                                                title="點擊進入工作日誌：${esc(topic)}（${esc(l.date || '')}）">
+                                          <span class="log-pill-icon" aria-hidden="true">✎</span>
+                                          <span class="log-pill-title">${esc(topic)}</span>
                                           <span class="log-pill-date">${esc(store.shortDate(l.date))}</span>
-                                          <span class="log-pill-title">${esc(l.title || `${l.date} 工作紀錄`)}</span>
                                         </button>
-                                      `
-                                      )
+                                      `;
+                                      })
                                       .join('')}
                                   </div>
                                 </div>`
@@ -199,15 +201,17 @@
                     <div class="review-section-label">相關工作日誌 (${revLogs.length})</div>
                     <div class="related-logs-list" style="margin-top:4px;">
                       ${revLogs
-                        .map(
-                          (l) => `
+                        .map((l) => {
+                          const topic = (l.title || '').trim() || `未命名主題（${l.date || '無日期'}）`;
+                          return `
                           <button type="button" class="log-title-pill" data-jump-log="${esc(l.id)}"
-                                  title="點擊前往工作日誌：${esc(l.date)} ${esc(l.title || '工作紀錄')}">
+                                  title="點擊進入工作日誌：${esc(topic)}（${esc(l.date || '')}）">
+                            <span class="log-pill-icon" aria-hidden="true">✎</span>
+                            <span class="log-pill-title">${esc(topic)}</span>
                             <span class="log-pill-date">${esc(l.date)}</span>
-                            <span class="log-pill-title">${esc(l.title || `${l.date} 工作紀錄`)}</span>
                           </button>
-                        `
-                        )
+                        `;
+                        })
                         .join('')}
                     </div>
                   </div>

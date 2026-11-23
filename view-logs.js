@@ -234,8 +234,8 @@
               <input type="date" id="logDateInput" class="input" value="${esc(activeLog.date || store.todayStr())}" required />
             </div>
             <div class="form-field" style="flex:1;min-width:180px;">
-              <label for="logTitleInput">今日主題（選填）</label>
-              <input type="text" id="logTitleInput" class="input" value="${esc(activeLog.title || '')}" placeholder="例如：完成客戶簡報初稿、討論排程調整..." />
+              <label for="logTitleInput">今日主題</label>
+              <input type="text" id="logTitleInput" class="input" value="${esc(activeLog.title || '')}" placeholder="輸入今日主題名稱（會同步顯示在關聯的 OGSM 與檢核事項中）..." />
             </div>
           </div>
 
@@ -451,6 +451,38 @@
         contentHtml: sanitizeHtml(rawHtml),
       };
     }
+
+    // 切換關聯 OGSM、修改日期或今日主題時自動存檔，避免切頁漏存
+    const ogsmSelect = container.querySelector('#logOgsmSelect');
+    if (ogsmSelect) {
+      ogsmSelect.addEventListener('change', async () => {
+        const draft = collectDraftFields();
+        await store.saveRecord('logs', {
+          ...activeLog,
+          ...draft,
+          checklistIds: activeLog.checklistIds || [],
+          reviewIds: activeLog.reviewIds || [],
+          updatedAt: new Date().toISOString(),
+        });
+        store.toast(draft.ogsmId ? '已更新 OGSM 關聯並自動儲存' : '已取消 OGSM 關聯');
+      });
+    }
+
+    const dateInput = container.querySelector('#logDateInput');
+    const titleInput = container.querySelector('#logTitleInput');
+    const autoSaveMeta = async () => {
+      const draft = collectDraftFields();
+      if (draft.date === activeLog.date && draft.title === (activeLog.title || '')) return;
+      await store.saveRecord('logs', {
+        ...activeLog,
+        ...draft,
+        checklistIds: activeLog.checklistIds || [],
+        reviewIds: activeLog.reviewIds || [],
+        updatedAt: new Date().toISOString(),
+      });
+    };
+    if (dateInput) dateInput.addEventListener('change', autoSaveMeta);
+    if (titleInput) titleInput.addEventListener('change', autoSaveMeta);
 
     // 立即加入一個檢核工具項目（Checklist 或 Review）
     const auditSelect = container.querySelector('#logAuditAddSelect');
