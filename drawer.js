@@ -932,6 +932,90 @@
     );
   }
 
+  function openEventModal(existing, presetDate) {
+    const store = OGSM.store;
+    const { esc } = store;
+    const isEdit = Boolean(existing);
+    const measures = store.projectMeasures();
+    const defaultDate = existing ? existing.date : presetDate || store.todayStr();
+    const currentCat = existing ? existing.category || 'meeting' : 'meeting';
+
+    openModal(
+      isEdit ? '編輯專案行程' : '新增專案行程',
+      `
+        <form class="form-stack" id="modalEventForm">
+          <div class="form-field">
+            <label>行程標題</label>
+            <input type="text" class="input" name="title" value="${esc(existing ? existing.title : '')}" placeholder="例如：專案進度檢討會議、簡報定稿截止" required />
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>日期</label>
+              <input type="date" class="input" name="date" value="${esc(defaultDate)}" required />
+            </div>
+            <div class="form-field">
+              <label>時間（選填）</label>
+              <input type="time" class="input" name="time" value="${esc(existing ? existing.time || '' : '')}" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>分類</label>
+              <select class="select" name="category">
+                <option value="meeting" ${currentCat === 'meeting' ? 'selected' : ''}>會議</option>
+                <option value="deadline" ${currentCat === 'deadline' ? 'selected' : ''}>截止日</option>
+                <option value="milestone" ${currentCat === 'milestone' ? 'selected' : ''}>里程碑</option>
+                <option value="reminder" ${currentCat === 'reminder' ? 'selected' : ''}>提醒</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>關聯行動 M（選填）</label>
+              <select class="select" name="measureId">
+                <option value="">不特別綁定</option>
+                ${measures
+                  .map(
+                    (m) =>
+                      `<option value="${esc(m.id)}" ${existing && existing.measureId === m.id ? 'selected' : ''}>M · ${esc(m.title)}</option>`
+                  )
+                  .join('')}
+              </select>
+            </div>
+          </div>
+          <div class="form-field">
+            <label>備註（選填）</label>
+            <textarea class="textarea" name="note" placeholder="會議重點、準備事項或地點...">${esc(existing ? existing.note || '' : '')}</textarea>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn" data-close-modal>取消</button>
+            <button type="submit" class="btn btn-primary">儲存行程</button>
+          </div>
+        </form>
+      `,
+      (body) => {
+        body.querySelector('[data-close-modal]').addEventListener('click', closeModal);
+        body.querySelector('#modalEventForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          const dateVal = String(fd.get('date'));
+          await store.saveRecord('events', {
+            id: existing ? existing.id : OGSM.db.uid('evt'),
+            projectId: store.state.currentProjectId,
+            date: dateVal,
+            time: String(fd.get('time') || ''),
+            category: String(fd.get('category') || 'meeting'),
+            title: String(fd.get('title')).trim(),
+            measureId: fd.get('measureId') || null,
+            note: String(fd.get('note') || '').trim(),
+            createdAt: existing ? existing.createdAt : new Date().toISOString(),
+          });
+          store.state.calendarSelectedDate = dateVal;
+          closeModal();
+          store.toast(isEdit ? '已更新專案行程' : '已新增專案行程');
+        });
+      }
+    );
+  }
+
   OGSM.drawer = { open: openDrawer, close: closeDrawer, render: renderDrawer };
   OGSM.modals = {
     openModal,
@@ -943,5 +1027,6 @@
     openMeasureCreateModal,
     openFileModal,
     openReviewModal,
+    openEventModal,
   };
 })(window);

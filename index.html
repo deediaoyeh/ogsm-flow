@@ -77,14 +77,18 @@
           <span class="nav-icon" aria-hidden="true">▤</span>
           <span class="nav-label">甘特圖</span>
         </button>
+        <button class="nav-item" data-view="calendar">
+          <span class="nav-icon" aria-hidden="true">◫</span>
+          <span class="nav-label">行事曆</span>
+        </button>
         <button class="nav-item" data-view="todo">
           <span class="nav-icon" aria-hidden="true">☑</span>
           <span class="nav-label">To-Do 清單</span>
           <span class="nav-badge" id="badgeTodo">0</span>
         </button>
         <button class="nav-item" data-view="logs">
-          <span class="nav-icon" aria-hidden="true">✎</span>
-          <span class="nav-label">工作日誌</span>
+          <span class="nav-icon" aria-hidden="true">◷</span>
+          <span class="nav-label">專案時間軸</span>
         </button>
         <button class="nav-item" data-view="audit">
           <span class="nav-icon" aria-hidden="true">✦</span>
@@ -136,6 +140,7 @@
             <span class="search-icon" aria-hidden="true">⌕</span>
             <input type="search" id="globalSearch" placeholder="搜尋任務、待辦或 Drive 檔案..." aria-label="搜尋" />
           </div>
+          <button class="btn-icon mobile-only" id="btnMobileFiles" title="本專案檔案庫與備份" aria-label="檔案庫">⛁</button>
           <button class="btn btn-primary" id="btnQuickAction">＋ 新增行動 M</button>
         </div>
       </header>
@@ -157,22 +162,22 @@
       <span class="bottom-nav-icon" aria-hidden="true">▤</span>
       <span>甘特</span>
     </button>
+    <button class="bottom-nav-item" data-view="calendar">
+      <span class="bottom-nav-icon" aria-hidden="true">◫</span>
+      <span>行事曆</span>
+    </button>
     <button class="bottom-nav-item" data-view="todo">
       <span class="bottom-nav-icon" aria-hidden="true">☑</span>
       <span>To-Do</span>
       <span class="bottom-nav-dot" id="mobileBadgeTodo" hidden></span>
     </button>
     <button class="bottom-nav-item" data-view="logs">
-      <span class="bottom-nav-icon" aria-hidden="true">✎</span>
-      <span>日誌</span>
+      <span class="bottom-nav-icon" aria-hidden="true">◷</span>
+      <span>時間軸</span>
     </button>
     <button class="bottom-nav-item" data-view="audit">
       <span class="bottom-nav-icon" aria-hidden="true">✦</span>
       <span>檢核</span>
-    </button>
-    <button class="bottom-nav-item" data-view="database">
-      <span class="bottom-nav-icon" aria-hidden="true">⛁</span>
-      <span>檔案</span>
     </button>
   </nav>
 
@@ -213,6 +218,7 @@
   <script src="drawer.js"></script>
   <script src="view-ogsm.js"></script>
   <script src="view-gantt.js"></script>
+  <script src="view-calendar.js"></script>
   <script src="view-todo.js"></script>
   <script src="view-logs.js"></script>
   <script src="view-audit.js"></script>

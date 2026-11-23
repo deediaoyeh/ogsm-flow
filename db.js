@@ -6,7 +6,7 @@
 
   const OGSM = (global.OGSM = global.OGSM || {});
   const DB_NAME = 'OGSMFlowDB';
-  const DB_VERSION = 2;
+  const DB_VERSION = 3;
   const STORES = [
     'projects',
     'goals',
@@ -17,6 +17,7 @@
     'files',
     'reviews',
     'logs',
+    'events',
   ];
 
   let dbInstance = null;
@@ -465,6 +466,8 @@
           id: 'log_demo_1',
           projectId: p1,
           date: offsetDate(0),
+          time: '09:30',
+          logType: 'idea',
           title: '完成專案管理系統上線與功能盤點',
           measureId: m2,
           ogsmType: 'measure',
@@ -473,6 +476,32 @@
           reviewIds: ['rev_demo_1'],
           contentHtml:
             '<h3>今日重點進展</h3><ul><li>確認 <strong>OGSM 藍圖</strong> 與 <strong>日／週甘特圖</strong> 排程資料正確連動</li><li>整理 Google Drive 檔案連結至檔案庫</li></ul><blockquote><p>備註：明天開始集中整理種子用戶訪談問題清單。</p></blockquote>',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+      events: [
+        {
+          id: 'evt_demo_1',
+          projectId: p1,
+          date: offsetDate(2),
+          time: '14:00',
+          category: 'meeting',
+          title: '種子用戶訪談與回饋討論',
+          note: '準備訪談提綱與 Demo 網址',
+          measureId: m3,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: 'evt_demo_2',
+          projectId: p1,
+          date: offsetDate(6),
+          time: '18:00',
+          category: 'deadline',
+          title: '核心介面開發驗收截止',
+          note: '確認所有 Checklist 項目打勾完成',
+          measureId: m2,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },

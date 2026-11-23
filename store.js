@@ -16,6 +16,11 @@
     todoFilter: 'all', // 'all' | 'today' | 'ogsm' | 'standalone' | 'done'
     auditChecklistFilter: 'pending', // 'pending' | 'all'
     activeLogId: null,
+    timelineOrder: 'desc', // 'desc' | 'asc'
+    timelineFilter: 'all', // 'all' | 'logs' | 'activity'
+    calendarYear: new Date().getFullYear(),
+    calendarMonth: new Date().getMonth(), // 0-11
+    calendarSelectedDate: OGSM.db.formatDate(new Date()),
     activeDrawerMeasureId: null,
     data: {
       projects: [],
@@ -27,6 +32,7 @@
       files: [],
       reviews: [],
       logs: [],
+      events: [],
     },
   };
 
@@ -149,8 +155,8 @@
   }
 
   function projectTodos() {
-    return state.data.todos
-      .filter((t) => t.projectId === state.currentProjectId || t.projectId === null)
+    return (state.data.todos || [])
+      .filter((t) => t.projectId === state.currentProjectId)
       .sort((a, b) => {
         if (a.completed !== b.completed) return a.completed ? 1 : -1;
         return (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99');
@@ -187,8 +193,18 @@
 
   function projectLogs() {
     return (state.data.logs || [])
-      .filter((l) => l.projectId === state.currentProjectId || l.projectId === null)
-      .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      .filter((l) => l.projectId === state.currentProjectId)
+      .sort((a, b) => {
+        const ka = `${a.date || ''} ${a.time || '00:00'} ${a.createdAt || ''}`;
+        const kb = `${b.date || ''} ${b.time || '00:00'} ${b.createdAt || ''}`;
+        return kb.localeCompare(ka);
+      });
+  }
+
+  function projectEvents() {
+    return (state.data.events || [])
+      .filter((ev) => ev.projectId === state.currentProjectId)
+      .sort((a, b) => `${a.date || ''} ${a.time || ''}`.localeCompare(`${b.date || ''} ${b.time || ''}`));
   }
 
   function goalRate(goal) {
@@ -253,7 +269,8 @@
 
   /* CRUD 操作封裝 */
   async function saveRecord(storeName, record) {
-    const stamped = { ...record, updatedAt: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const stamped = { ...record, createdAt: record.createdAt || now, updatedAt: now };
     await OGSM.db.put(storeName, stamped);
     const arr = state.data[storeName];
     const idx = arr.findIndex((item) => item.id === stamped.id);
@@ -344,7 +361,7 @@
       state.data.files = state.data.files.filter((f) => f.projectId !== projectId);
     }
 
-    const stores = ['goals', 'strategies', 'measures', 'todos', 'checklists', 'reviews', 'logs'];
+    const stores = ['goals', 'strategies', 'measures', 'todos', 'checklists', 'reviews', 'logs', 'events'];
     for (const s of stores) {
       const items = state.data[s].filter((r) => r.projectId === projectId);
       for (const item of items) {
@@ -415,6 +432,7 @@
     retainedFiles,
     projectReviews,
     projectLogs,
+    projectEvents,
     goalRate,
     measureStatus,
     projectSummary,

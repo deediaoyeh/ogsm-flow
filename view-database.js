@@ -8,21 +8,27 @@
   OGSM.views = OGSM.views || {};
 
   let fileTypeFilter = 'all';
+  let fileMeasureFilter = 'all';
 
   function render(container) {
     const store = OGSM.store;
     const { esc, safeUrl } = store;
     const data = store.state.data;
+    const project = store.currentProject();
     const q = store.state.searchQuery;
     const measures = store.projectMeasures();
     const measureMap = new Map(measures.map((m) => [m.id, m]));
 
+    // 每個專案獨立檔案庫：嚴格僅顯示目前專案的檔案
     const currentProjFiles = store.projectFiles();
     const archivedFiles = store.retainedFiles();
-    const allVisibleFiles = [...currentProjFiles, ...archivedFiles];
 
-    const files = allVisibleFiles.filter((f) => {
+    const files = currentProjFiles.filter((f) => {
       if (fileTypeFilter !== 'all' && f.driveType !== fileTypeFilter) return false;
+      if (fileMeasureFilter === 'shared' && f.measureId) return false;
+      if (fileMeasureFilter !== 'all' && fileMeasureFilter !== 'shared' && f.measureId !== fileMeasureFilter) {
+        return false;
+      }
       if (q) {
         const linked = f.measureId ? measureMap.get(f.measureId) : null;
         return (
@@ -35,16 +41,24 @@
       return true;
     });
 
+    const filteredArchived = archivedFiles.filter((f) => {
+      if (!q) return true;
+      return (
+        (f.name || '').toLowerCase().includes(q) ||
+        (f.note || '').toLowerCase().includes(q) ||
+        (f.url || '').toLowerCase().includes(q)
+      );
+    });
+
     const stats = [
-      { label: '專案 (Projects)', val: data.projects.length },
-      { label: '目標 (Goals)', val: data.goals.length },
-      { label: '策略 (Strategies)', val: data.strategies.length },
-      { label: '行動 (Measures)', val: data.measures.length },
-      { label: '待辦 (To-Dos)', val: data.todos.length },
-      { label: '檢核項 (Checklists)', val: data.checklists.length },
-      { label: 'Drive 檔案連結', val: data.files.length },
-      { label: '覆盤紀錄 (Reviews)', val: data.reviews.length },
-      { label: '工作日誌 (Logs)', val: (data.logs || []).length },
+      { label: '專案總數', val: data.projects.length },
+      { label: '本專案目標 G', val: store.projectGoals().length },
+      { label: '本專案行動 M', val: measures.length },
+      { label: '本專案待辦', val: store.projectTodos().length },
+      { label: '本專案行程', val: store.projectEvents().length },
+      { label: '本專案時間軸', val: store.projectLogs().length },
+      { label: '本專案檔案', val: currentProjFiles.length },
+      { label: '本專案覆盤', val: store.projectReviews().length },
     ];
 
     const fileRowsHtml = files.length
@@ -118,11 +132,14 @@
           .join('')}
       </div>
 
-      <!-- Google Drive 檔案庫 -->
+      <!-- 目前專案獨立 Google Drive 檔案庫 -->
       <div class="card">
         <div class="section-header">
           <div class="row-gap-sm" style="flex-wrap:wrap;">
-            <h2 class="section-title">目前專案 Google Drive 檔案庫</h2>
+            <div>
+              <h2 class="section-title">${project ? `「${esc(project.name)}」專屬檔案庫` : '專案 Google Drive 檔案庫'} (${files.length})</h2>
+              <div class="muted-text" style="font-size:11.5px;">僅顯示此專案的檔案連結，切換專案自動獨立隔離</div>
+            </div>
             <div class="seg-tabs">
               <button class="seg-tab ${fileTypeFilter === 'all' ? 'active' : ''}" data-ftype="all">全部</button>
               <button class="seg-tab ${fileTypeFilter === 'doc' ? 'active' : ''}" data-ftype="doc">Docs</button>
@@ -131,7 +148,19 @@
               <button class="seg-tab ${fileTypeFilter === 'folder' ? 'active' : ''}" data-ftype="folder">資料夾</button>
             </div>
           </div>
-          <button class="btn btn-sm btn-primary" id="btnAddDriveFile">＋ 新增 Drive 連結</button>
+          <div class="row-gap-xs" style="flex-wrap:wrap;">
+            <select class="select" id="fileMeasureFilterSelect" style="width:auto;min-width:160px;padding:5px 9px;font-size:12px;" aria-label="依行動項目篩選">
+              <option value="all" ${fileMeasureFilter === 'all' ? 'selected' : ''}>所有關聯項目</option>
+              <option value="shared" ${fileMeasureFilter === 'shared' ? 'selected' : ''}>僅專案共用檔案</option>
+              ${measures
+                .map(
+                  (m) =>
+                    `<option value="${esc(m.id)}" ${fileMeasureFilter === m.id ? 'selected' : ''}>M · ${esc(m.title)}</option>`
+                )
+                .join('')}
+            </select>
+            <button class="btn btn-sm btn-primary" id="btnAddDriveFile">＋ 新增 Drive 連結</button>
+          </div>
         </div>
 
         <div style="overflow-x:auto;">
@@ -148,15 +177,65 @@
           </table>
         </div>
       </div>
+
+      ${
+        filteredArchived.length
+          ? `<div class="card" style="margin-top:16px;">
+              <div class="section-header" style="margin-bottom:10px;">
+                <div>
+                  <h2 class="section-title">已留存的歷史檔案（原專案已刪除 · ${filteredArchived.length}）</h2>
+                  <div class="muted-text" style="font-size:11.5px;">不混入現有專案，可隨時點「移入專案」歸入目前專案</div>
+                </div>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="file-table">
+                  <tbody>
+                    ${filteredArchived
+                      .map((f) => {
+                        const meta = OGSM.db.driveTypeMeta(f.driveType);
+                        return `
+                          <tr>
+                            <td>
+                              <a href="${esc(safeUrl(f.url))}" target="_blank" rel="noopener noreferrer"
+                                 style="display:inline-flex;align-items:center;gap:8px;font-weight:500;">
+                                <span class="drive-dot ${meta.cls}"></span>
+                                <span>${esc(f.name)}</span>
+                              </a>
+                              ${f.note ? `<div class="muted-text" style="font-size:11.5px;margin-top:2px;">${esc(f.note)}</div>` : ''}
+                            </td>
+                            <td style="width:90px;"><span class="pill">${meta.label}</span></td>
+                            <td style="text-align:right;white-space:nowrap;">
+                              ${project ? `<button class="btn btn-sm" data-adopt-file="${esc(f.id)}">移入目前專案</button>` : ''}
+                              <a class="btn btn-sm" href="${esc(safeUrl(f.url))}" target="_blank" rel="noopener noreferrer">開啟 ↗</a>
+                              <button class="btn-icon danger" data-del-file="${esc(f.id)}" title="移除連結">✕</button>
+                            </td>
+                          </tr>
+                        `;
+                      })
+                      .join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>`
+          : ''
+      }
     `;
 
-    // 類型篩選
+    // 類型與關聯 M 篩選
     container.querySelectorAll('[data-ftype]').forEach((btn) => {
       btn.addEventListener('click', () => {
         fileTypeFilter = btn.dataset.ftype;
         store.notify();
       });
     });
+
+    const measFilterEl = container.querySelector('#fileMeasureFilterSelect');
+    if (measFilterEl) {
+      measFilterEl.addEventListener('change', () => {
+        fileMeasureFilter = measFilterEl.value;
+        store.notify();
+      });
+    }
 
     // 新增 Drive 檔案
     const btnAddFile = container.querySelector('#btnAddDriveFile');

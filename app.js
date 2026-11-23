@@ -19,16 +19,22 @@
       actionLabel: '＋ 新增行動 M',
       onAction: () => OGSM.modals.openMeasureCreateModal(),
     },
+    calendar: {
+      title: '專案行事曆',
+      subtitle: '此專案專屬月曆：整合行程、行動截止日、To-Do 與時間軸紀錄',
+      actionLabel: '＋ 新增行程',
+      onAction: () => OGSM.modals.openEventModal(null, OGSM.store.state.calendarSelectedDate),
+    },
     todo: {
       title: 'To-Do 清單',
-      subtitle: '同時管理 OGSM 關聯待辦與日常獨立臨時事項',
+      subtitle: '此專案專屬待辦：支援 OGSM 關聯待辦與專案臨時事項',
       actionLabel: '＋ 新增行動 M',
       onAction: () => OGSM.modals.openMeasureCreateModal(),
     },
     logs: {
-      title: '工作日誌',
-      subtitle: '彈性記錄每日完成事項（含日期與視覺化 / HTML 編輯器）',
-      actionLabel: '＋ 新增日誌',
+      title: '專案時間軸 & HTML 日誌',
+      subtitle: '按時間點回顧想法決策、新增項目軌跡與 HTML 完整內容紀錄',
+      actionLabel: '＋ 新增節點',
       onAction: () => OGSM.views.logs.createNewLog(),
     },
     audit: {
@@ -152,6 +158,15 @@
         closeMobileSidebar();
       });
     });
+
+    // 手機頂部快速前往本專案檔案庫
+    const btnMobFiles = document.getElementById('btnMobileFiles');
+    if (btnMobFiles) {
+      btnMobFiles.addEventListener('click', () => {
+        store.setView('database');
+        closeMobileSidebar();
+      });
+    }
 
     // 頂部快速按鈕
     document.getElementById('btnQuickAction').addEventListener('click', () => {
