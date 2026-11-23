@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#131619" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="OGSM Flow" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <title>OGSM Flow — 極簡個人專案管理</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- 左側極簡導覽欄 -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">O</div>
+        <div class="brand-text">
+          <span class="brand-title">OGSM Flow</span>
+          <span class="brand-sub">極簡個人專案管理</span>
+        </div>
+      </div>
+
+      <!-- 專案切換 -->
+      <div class="project-switcher">
+        <div class="switcher-header">
+          <label class="switcher-label" for="projectSelect">目前專案</label>
+          <button id="btnNewProject" class="btn-ghost-xs" title="新增專案">＋ 新增</button>
+        </div>
+        <select id="projectSelect" class="select-clean" aria-label="選擇專案"></select>
+      </div>
+
+      <!-- 四大核心導覽 -->
+      <nav class="nav-menu" aria-label="主導覽">
+        <button class="nav-item active" data-view="ogsm">
+          <span class="nav-icon" aria-hidden="true">◎</span>
+          <span class="nav-label">OGSM 藍圖</span>
+        </button>
+        <button class="nav-item" data-view="gantt">
+          <span class="nav-icon" aria-hidden="true">▤</span>
+          <span class="nav-label">甘特圖</span>
+        </button>
+        <button class="nav-item" data-view="todo">
+          <span class="nav-icon" aria-hidden="true">☑</span>
+          <span class="nav-label">To-Do 清單</span>
+          <span class="nav-badge" id="badgeTodo">0</span>
+        </button>
+        <button class="nav-item" data-view="audit">
+          <span class="nav-icon" aria-hidden="true">✦</span>
+          <span class="nav-label">檢核工具</span>
+          <span class="nav-badge muted" id="badgeChecklist" hidden>0</span>
+        </button>
+      </nav>
+
+      <!-- 底部輕量入口：進度摘要 + 資料庫與備份 -->
+      <div class="sidebar-footer">
+        <div class="progress-mini">
+          <div class="progress-mini-top">
+            <span>目標平均達成</span>
+            <strong id="sidebarGoalRate">0%</strong>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="sidebarGoalBar" style="width: 0%"></div>
+          </div>
+          <div class="progress-mini-meta" id="sidebarProgressMeta">0 項行動計畫</div>
+        </div>
+
+        <button class="nav-item subtle" data-view="database" id="navDatabase">
+          <span class="nav-icon" aria-hidden="true">⛁</span>
+          <span class="nav-label">資料庫 &amp; 檔案庫</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 主內容區 -->
+    <main class="main-area">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="btn-icon mobile-only" id="btnToggleSidebar" aria-label="展開選單">☰</button>
+          <div>
+            <h1 class="page-title" id="pageTitle">OGSM 藍圖</h1>
+            <p class="page-subtitle" id="pageSubtitle"></p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div class="search-box">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input type="search" id="globalSearch" placeholder="搜尋任務、待辦或 Drive 檔案..." aria-label="搜尋" />
+          </div>
+          <button class="btn btn-primary" id="btnQuickAction">＋ 新增行動 M</button>
+        </div>
+      </header>
+
+      <section class="view-container" id="viewContainer" aria-live="polite"></section>
+    </main>
+  </div>
+
+  <!-- 手機版側邊欄遮罩 -->
+  <div class="backdrop mobile-sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+
+  <!-- 手機版底部單手導覽列 -->
+  <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="手機主導覽">
+    <button class="bottom-nav-item active" data-view="ogsm">
+      <span class="bottom-nav-icon" aria-hidden="true">◎</span>
+      <span>OGSM</span>
+    </button>
+    <button class="bottom-nav-item" data-view="gantt">
+      <span class="bottom-nav-icon" aria-hidden="true">▤</span>
+      <span>甘特圖</span>
+    </button>
+    <button class="bottom-nav-item" data-view="todo">
+      <span class="bottom-nav-icon" aria-hidden="true">☑</span>
+      <span>To-Do</span>
+      <span class="bottom-nav-dot" id="mobileBadgeTodo" hidden></span>
+    </button>
+    <button class="bottom-nav-item" data-view="audit">
+      <span class="bottom-nav-icon" aria-hidden="true">✦</span>
+      <span>檢核</span>
+    </button>
+    <button class="bottom-nav-item" data-view="database">
+      <span class="bottom-nav-icon" aria-hidden="true">⛁</span>
+      <span>檔案庫</span>
+    </button>
+  </nav>
+
+  <!-- 右側行動項目詳情抽屜（編輯日期、進度、Google Drive 檔案、Checklist、子 To-Do） -->
+  <div class="backdrop" id="drawerBackdrop" hidden></div>
+  <aside class="drawer" id="measureDrawer" aria-hidden="true">
+    <div class="drawer-header">
+      <div class="drawer-header-left">
+        <span class="pill" id="drawerStatusPill">進行中</span>
+        <span class="drawer-crumb" id="drawerCrumb"></span>
+      </div>
+      <div class="row-gap-xs">
+        <button class="btn-icon danger" id="btnDeleteMeasure" title="刪除此項目" aria-label="刪除">🗑</button>
+        <button class="btn-icon" id="btnCloseDrawer" title="關閉" aria-label="關閉">✕</button>
+      </div>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </aside>
+
+  <!-- 通用簡易彈窗 -->
+  <div class="backdrop modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle">新增</h2>
+        <button class="btn-icon" id="btnCloseModal" aria-label="關閉">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- Toast 輕量提示 -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <!-- 經典載入：零建置、雙擊 index.html 與 GitHub Pages 皆可直接運行 -->
+  <script src="db.js"></script>
+  <script src="store.js"></script>
+  <script src="drawer.js"></script>
+  <script src="view-ogsm.js"></script>
+  <script src="view-gantt.js"></script>
+  <script src="view-todo.js"></script>
+  <script src="view-audit.js"></script>
+  <script src="view-database.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

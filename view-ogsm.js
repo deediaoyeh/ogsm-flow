@@ -1,0 +1,255 @@
+/* ============================================================
+   js/views/ogsm.js — ① OGSM 藍圖一頁式總覽視圖
+   ============================================================ */
+(function (global) {
+  'use strict';
+
+  const OGSM = (global.OGSM = global.OGSM || {});
+  OGSM.views = OGSM.views || {};
+
+  function matchesSearch(text, q) {
+    if (!q) return true;
+    return String(text || '').toLowerCase().includes(q);
+  }
+
+  function render(container) {
+    const store = OGSM.store;
+    const { esc } = store;
+    const project = store.currentProject();
+
+    if (!project) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <p>目前還沒有專案，建立您的第一個 OGSM 專案吧！</p>
+          <button class="btn btn-primary" id="btnEmptyNewProj">＋ 建立第一個專案</button>
+        </div>
+      `;
+      const btn = container.querySelector('#btnEmptyNewProj');
+      if (btn) btn.addEventListener('click', () => OGSM.modals.openProjectModal());
+      return;
+    }
+
+    const q = store.state.searchQuery;
+    const goals = store.projectGoals();
+    const summary = store.projectSummary();
+    const projectRootFiles = store.projectFiles().filter((f) => !f.measureId);
+
+    const goalsHtml = goals
+      .map((goal) => {
+        const rate = store.goalRate(goal);
+        const barColor = rate >= 100 ? 'green' : rate >= 50 ? '' : 'amber';
+        const strategies = store.projectStrategies(goal.id);
+
+        const strategiesHtml = strategies
+          .map((strat) => {
+            const measures = store.projectMeasures(strat.id).filter((m) => {
+              if (!q) return true;
+              const files = store.measureFiles(m.id);
+              return (
+                matchesSearch(m.title, q) ||
+                matchesSearch(m.metric, q) ||
+                matchesSearch(strat.title, q) ||
+                matchesSearch(goal.title, q) ||
+                files.some((f) => matchesSearch(f.name, q))
+              );
+            });
+
+            if (q && measures.length === 0 && !matchesSearch(strat.title, q) && !matchesSearch(goal.title, q)) {
+              return '';
+            }
+
+            const measuresHtml = measures.length
+              ? measures
+                  .map((m) => {
+                    const status = store.measureStatus(m);
+                    const checks = store.measureChecklists(m.id);
+                    const doneChecks = checks.filter((c) => c.checked).length;
+                    const files = store.measureFiles(m.id);
+                    const fillCls = status.key === 'done' ? 'green' : status.key === 'overdue' ? 'red' : '';
+                    return `
+                      <div class="measure-row" data-open-measure="${esc(m.id)}">
+                        <div class="measure-name">
+                          <span class="letter-badge m" style="width:20px;height:20px;font-size:10.5px;">M</span>
+                          <span class="measure-name-text" title="${esc(m.title)}">
+                            ${m.isMilestone ? '◆ ' : ''}${esc(m.title)}
+                          </span>
+                          ${status.key === 'overdue' ? '<span class="pill red">逾期</span>' : ''}
+                        </div>
+                        <div class="measure-dates">
+                          ${esc(store.shortDate(m.startDate))} – ${esc(store.shortDate(m.endDate))}
+                        </div>
+                        <div class="measure-prog">
+                          <div class="progress-track" style="width:56px;">
+                            <div class="progress-fill ${fillCls}" style="width:${Number(m.progress) || 0}%"></div>
+                          </div>
+                          <span>${Number(m.progress) || 0}%</span>
+                        </div>
+                        <div class="measure-files-inline">
+                          ${
+                            files.length
+                              ? files.slice(0, 2).map((f) => store.renderDriveChip(f)).join('') +
+                                (files.length > 2 ? `<span class="muted-text">+${files.length - 2}</span>` : '')
+                              : '<span class="muted-text" style="font-size:11.5px;">尚無檔案</span>'
+                          }
+                        </div>
+                        <div class="measure-check-count" title="檢核清單完成數">
+                          ${checks.length ? `✓ ${doneChecks}/${checks.length}` : '—'}
+                        </div>
+                      </div>
+                    `;
+                  })
+                  .join('')
+              : `<div class="muted-text" style="padding:8px 6px;font-size:12px;">尚無行動項目 M，點擊右上角「＋ 行動 M」開始排程。</div>`;
+
+            return `
+              <div class="strategy-block">
+                <div class="strategy-header">
+                  <div class="strategy-title-row">
+                    <span class="letter-badge s">S</span>
+                    <div>
+                      <div class="strategy-title">${esc(strat.title)}</div>
+                      ${strat.description ? `<div class="muted-text" style="font-size:12px;">${esc(strat.description)}</div>` : ''}
+                    </div>
+                  </div>
+                  <div class="row-gap-xs">
+                    <button class="btn btn-sm" data-add-measure="${esc(strat.id)}" data-goal-id="${esc(goal.id)}">＋ 行動 M</button>
+                    <button class="btn-icon" data-edit-strategy="${esc(strat.id)}" title="編輯策略">✎</button>
+                  </div>
+                </div>
+                <div class="measure-rows">${measuresHtml}</div>
+              </div>
+            `;
+          })
+          .filter(Boolean)
+          .join('');
+
+        if (q && !strategiesHtml && !matchesSearch(goal.title, q)) {
+          return '';
+        }
+
+        return `
+          <article class="goal-card">
+            <div class="goal-header">
+              <div class="goal-title-group">
+                <span class="letter-badge g">G</span>
+                <div>
+                  <h3 class="goal-title">${esc(goal.title)}</h3>
+                  <div class="muted-text" style="font-size:12px;">
+                    ${goal.metricName ? `指標：${esc(goal.metricName)}` : ''}
+                    ${goal.deadline ? ` · 目標日 ${esc(goal.deadline)}` : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="goal-metric-box">
+                <button class="goal-metric-pill" data-edit-goal="${esc(goal.id)}" title="點擊更新目標數值">
+                  ${Number(goal.currentValue) || 0} / ${Number(goal.targetValue) || 0} ${esc(goal.unit || '')} · <strong>${rate}%</strong>
+                </button>
+                <div class="goal-bar-wrap">
+                  <div class="progress-track">
+                    <div class="progress-fill ${barColor}" style="width:${rate}%"></div>
+                  </div>
+                </div>
+                <button class="btn btn-sm" data-add-strategy="${esc(goal.id)}">＋ 策略 S</button>
+                <button class="btn-icon" data-edit-goal="${esc(goal.id)}" title="編輯目標">✎</button>
+              </div>
+            </div>
+            <div class="strategy-list">
+              ${
+                strategiesHtml ||
+                `<div class="muted-text" style="font-size:12.5px;padding:4px 2px;">尚未設定策略 S，點擊上方「＋ 策略 S」建立執行方向。</div>`
+              }
+            </div>
+          </article>
+        `;
+      })
+      .filter(Boolean)
+      .join('');
+
+    container.innerHTML = `
+      <!-- O 目的橫幅 -->
+      <section class="objective-banner">
+        <div style="flex:1;min-width:0;">
+          <div class="objective-tag">O · OBJECTIVE 專案目的</div>
+          <p class="objective-text">${esc(project.objective || '尚未填寫專案目的 O')}</p>
+          <div class="objective-meta">
+            <span>週期：${esc(project.period || '未設定')}</span>
+            <span>目標 G：${summary.goalCount} 項</span>
+            <span>行動 M：${summary.measureCount} 項</span>
+            ${
+              projectRootFiles.length
+                ? `<span class="row-gap-xs" style="display:inline-flex;">${projectRootFiles.map((f) => store.renderDriveChip(f)).join('')}</span>`
+                : ''
+            }
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px;">
+          <div class="objective-stats">
+            <div class="stat-mini">
+              <div class="stat-mini-val" style="color:var(--green);">${summary.avgGoalRate}%</div>
+              <div class="stat-mini-label">G 平均達成</div>
+            </div>
+            <div class="stat-mini">
+              <div class="stat-mini-val" style="color:var(--accent);">${summary.avgMeasureRate}%</div>
+              <div class="stat-mini-label">M 平均進度</div>
+            </div>
+          </div>
+          <div class="row-gap-xs">
+            <button class="btn btn-sm" id="btnEditProject">編輯目的 O</button>
+            <button class="btn btn-sm btn-primary" id="btnAddGoal">＋ 新增目標 G</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- G → S → M 階層列表 -->
+      <div class="goal-list">
+        ${
+          goalsHtml ||
+          `<div class="empty-state">
+            <p>${q ? '沒有符合搜尋條件的 OGSM 項目。' : '尚未建立目標 G，先新增一個可量化的目標吧！'}</p>
+            ${!q ? '<button class="btn btn-primary" id="btnEmptyAddGoal">＋ 新增目標 G</button>' : ''}
+          </div>`
+        }
+      </div>
+    `;
+
+    // 綁定事件
+    const btnEditProject = container.querySelector('#btnEditProject');
+    if (btnEditProject) btnEditProject.addEventListener('click', () => OGSM.modals.openProjectModal(project));
+
+    const btnAddGoal = container.querySelector('#btnAddGoal');
+    if (btnAddGoal) btnAddGoal.addEventListener('click', () => OGSM.modals.openGoalModal());
+
+    const btnEmptyAddGoal = container.querySelector('#btnEmptyAddGoal');
+    if (btnEmptyAddGoal) btnEmptyAddGoal.addEventListener('click', () => OGSM.modals.openGoalModal());
+
+    container.querySelectorAll('[data-edit-goal]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const g = store.state.data.goals.find((item) => item.id === el.dataset.editGoal);
+        if (g) OGSM.modals.openGoalModal(g);
+      });
+    });
+
+    container.querySelectorAll('[data-add-strategy]').forEach((el) => {
+      el.addEventListener('click', () => OGSM.modals.openStrategyModal(null, el.dataset.addStrategy));
+    });
+
+    container.querySelectorAll('[data-edit-strategy]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const s = store.state.data.strategies.find((item) => item.id === el.dataset.editStrategy);
+        if (s) OGSM.modals.openStrategyModal(s);
+      });
+    });
+
+    container.querySelectorAll('[data-add-measure]').forEach((el) => {
+      el.addEventListener('click', () =>
+        OGSM.modals.openMeasureCreateModal(el.dataset.goalId, el.dataset.addMeasure)
+      );
+    });
+
+    container.querySelectorAll('[data-open-measure]').forEach((el) => {
+      el.addEventListener('click', () => OGSM.drawer.open(el.dataset.openMeasure));
+    });
+  }
+
+  OGSM.views.ogsm = { render };
+})(window);

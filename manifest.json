@@ -1,0 +1,17 @@
+{
+  "name": "OGSM Flow — 極簡個人專案管理",
+  "short_name": "OGSM Flow",
+  "description": "護眼深色極簡 OGSM 專案管理、日週甘特圖、To-Do 與定期檢核系統",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#131619",
+  "theme_color": "#131619",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
