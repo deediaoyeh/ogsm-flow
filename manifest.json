@@ -1,11 +1,11 @@
 {
   "name": "OGSM Flow — 極簡個人專案管理",
   "short_name": "OGSM Flow",
-  "description": "護眼深色極簡 OGSM 專案管理、日週甘特圖、To-Do 與定期檢核系統",
+  "description": "日系淡雅極簡 OGSM 專案管理、日週甘特圖、To-Do、工作日誌與定期檢核系統",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#131619",
-  "theme_color": "#131619",
+  "background_color": "#f6f4ef",
+  "theme_color": "#f6f4ef",
   "icons": [
     {
       "src": "icon.svg",
