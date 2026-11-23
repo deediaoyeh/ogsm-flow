@@ -15,6 +15,7 @@
     ganttOffsetDays: -5,
     todoFilter: 'all', // 'all' | 'today' | 'ogsm' | 'standalone' | 'done'
     auditChecklistFilter: 'pending', // 'pending' | 'all'
+    activeLogId: null,
     activeDrawerMeasureId: null,
     data: {
       projects: [],
@@ -25,6 +26,7 @@
       checklists: [],
       files: [],
       reviews: [],
+      logs: [],
     },
   };
 
@@ -179,6 +181,12 @@
       .sort((a, b) => (b.reviewDate || '').localeCompare(a.reviewDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
   }
 
+  function projectLogs() {
+    return (state.data.logs || [])
+      .filter((l) => l.projectId === state.currentProjectId || l.projectId === null)
+      .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  }
+
   function goalRate(goal) {
     const target = Number(goal.targetValue);
     const current = Number(goal.currentValue);
@@ -224,6 +232,12 @@
     };
   }
 
+  function triggerCloudSync() {
+    if (OGSM.auth && typeof OGSM.auth.scheduleSync === 'function') {
+      OGSM.auth.scheduleSync();
+    }
+  }
+
   /* CRUD 操作封裝 */
   async function saveRecord(storeName, record) {
     await OGSM.db.put(storeName, record);
@@ -232,6 +246,7 @@
     if (idx >= 0) arr[idx] = record;
     else arr.push(record);
     notify();
+    triggerCloudSync();
     return record;
   }
 
@@ -239,6 +254,7 @@
     await OGSM.db.remove(storeName, id);
     state.data[storeName] = state.data[storeName].filter((item) => item.id !== id);
     notify();
+    triggerCloudSync();
   }
 
   async function deleteMeasureCascade(measureId) {
@@ -260,6 +276,7 @@
     state.data.measures = state.data.measures.filter((m) => m.id !== measureId);
     if (state.activeDrawerMeasureId === measureId) state.activeDrawerMeasureId = null;
     notify();
+    triggerCloudSync();
   }
 
   async function deleteStrategyCascade(strategyId) {
@@ -275,7 +292,7 @@
   }
 
   async function deleteProjectCascade(projectId) {
-    const stores = ['goals', 'strategies', 'measures', 'todos', 'checklists', 'files', 'reviews'];
+    const stores = ['goals', 'strategies', 'measures', 'todos', 'checklists', 'files', 'reviews', 'logs'];
     for (const s of stores) {
       const items = state.data[s].filter((r) => r.projectId === projectId);
       for (const item of items) await OGSM.db.remove(s, item.id);
@@ -286,6 +303,7 @@
     state.currentProjectId = state.data.projects[0] ? state.data.projects[0].id : null;
     localStorage.setItem('ogsm_current_project', state.currentProjectId || '');
     notify();
+    triggerCloudSync();
   }
 
   function renderDriveChip(file) {
@@ -325,6 +343,7 @@
     measureFiles,
     projectFiles,
     projectReviews,
+    projectLogs,
     goalRate,
     measureStatus,
     projectSummary,

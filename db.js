@@ -6,7 +6,7 @@
 
   const OGSM = (global.OGSM = global.OGSM || {});
   const DB_NAME = 'OGSMFlowDB';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   const STORES = [
     'projects',
     'goals',
@@ -16,6 +16,7 @@
     'checklists',
     'files',
     'reviews',
+    'logs',
   ];
 
   let dbInstance = null;
@@ -413,6 +414,19 @@
           blockers: '撰寫深度文章花費時間比預期多，壓縮到測試問卷準備時間。',
           nextActions: '下週改為固定早上 1 小時寫作，下午集中收尾開發與寄出測試邀請。',
           createdAt: new Date().toISOString(),
+        },
+      ],
+      logs: [
+        {
+          id: 'log_demo_1',
+          projectId: p1,
+          date: offsetDate(0),
+          title: '完成專案管理系統上線與功能盤點',
+          measureId: m2,
+          contentHtml:
+            '<h3>今日重點進展</h3><ul><li>確認 <strong>OGSM 藍圖</strong> 與 <strong>日／週甘特圖</strong> 排程資料正確連動</li><li>整理 Google Drive 檔案連結至檔案庫</li></ul><blockquote><p>備註：明天開始集中整理種子用戶訪談問題清單。</p></blockquote>',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
       ],
     };

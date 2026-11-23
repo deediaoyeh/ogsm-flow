@@ -25,6 +25,12 @@
       actionLabel: '＋ 新增行動 M',
       onAction: () => OGSM.modals.openMeasureCreateModal(),
     },
+    logs: {
+      title: '工作日誌',
+      subtitle: '彈性記錄每日完成事項（含日期與視覺化 / HTML 編輯器）',
+      actionLabel: '＋ 新增日誌',
+      onAction: () => OGSM.views.logs.createNewLog(),
+    },
     audit: {
       title: '檢核工具',
       subtitle: '集中管理任務檢核清單（Checklist）與週／月定期覆盤快照',
@@ -176,6 +182,25 @@
       sbBackdrop.addEventListener('click', closeMobileSidebar);
     }
 
+    // 手動同步至 Google Drive
+    const btnSync = document.getElementById('btnSidebarSync');
+    if (btnSync) {
+      btnSync.addEventListener('click', async () => {
+        if (!OGSM.auth) return;
+        await OGSM.auth.pushToDriveNow();
+        store.toast('已與 Google Drive 完成同步');
+      });
+    }
+
+    // 登出並鎖定（撤銷憑證＋清除本機暫存）
+    const btnSignOut = document.getElementById('btnLockSignOut');
+    if (btnSignOut) {
+      btnSignOut.addEventListener('click', async () => {
+        if (!confirm('確定要安全登出並清除此裝置暫存嗎？（最新資料會先同步至 Google Drive）')) return;
+        await OGSM.auth.lockSession('您已安全登出並清除此裝置快取。', false, true);
+      });
+    }
+
     // ESC 鍵關閉彈窗或抽屜
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -191,15 +216,9 @@
   async function init() {
     bindGlobalEvents();
     OGSM.store.subscribe(renderShell);
-    try {
-      await OGSM.store.hydrate();
-    } catch (err) {
-      console.error('初始化失敗:', err);
-      document.getElementById('viewContainer').innerHTML = `
-        <div class="empty-state">
-          <p>瀏覽器資料庫初始化發生錯誤：${OGSM.store.esc(err.message)}</p>
-        </div>
-      `;
+    // 嚴格驗證模式：未通過 Google 帳號驗證前，絕不載入資料或顯示主畫面
+    if (OGSM.auth && typeof OGSM.auth.init === 'function') {
+      OGSM.auth.init();
     }
   }
 

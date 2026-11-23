@@ -100,6 +100,176 @@ button {
 }
 
 /* ============================================================
+   嚴格 Google 帳號驗證鎖屏 & 雲端同步狀態
+   ============================================================ */
+.auth-gate[hidden],
+.app-shell[hidden] {
+  display: none !important;
+}
+
+.auth-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: radial-gradient(circle at 50% 0%, rgba(127, 152, 245, 0.08), transparent 55%), var(--bg-app);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 430px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 28px 26px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-mark.lg {
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+  border-radius: 12px;
+}
+
+.auth-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.auth-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.auth-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.auth-security-list {
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.auth-sec-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-sec-item span {
+  color: var(--green);
+  font-size: 8px;
+}
+
+.auth-sec-item code {
+  background: var(--bg-surface-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 11px 16px;
+  font-size: 14px;
+}
+.auth-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.auth-message {
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  border: 1px solid rgba(127, 152, 245, 0.25);
+}
+.auth-message.error {
+  background: var(--red-soft);
+  color: var(--red);
+  border-color: rgba(220, 118, 118, 0.3);
+}
+
+.auth-sidebar-box {
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.auth-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.auth-user-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-pill {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border-radius: var(--radius-xs);
+  padding: 5px 8px;
+  font-size: 11.5px;
+  text-align: left;
+  transition: border-color var(--transition), background var(--transition);
+}
+.sync-pill:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+.sync-pill.green {
+  color: var(--green);
+  border-color: rgba(97, 193, 142, 0.28);
+}
+.sync-pill.blue {
+  color: var(--accent);
+  border-color: rgba(127, 152, 245, 0.3);
+}
+.sync-pill.red {
+  color: var(--red);
+  border-color: rgba(220, 118, 118, 0.35);
+}
+
+/* ============================================================
    整體外殼佈局
    ============================================================ */
 .app-shell {
@@ -1315,6 +1485,226 @@ button {
 }
 
 /* ============================================================
+   工作日誌與內建 HTML 編輯器
+   ============================================================ */
+.logs-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.logs-sidebar {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.log-list-item {
+  width: 100%;
+  text-align: left;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: border-color var(--transition), background var(--transition);
+}
+.log-list-item:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-surface-2);
+}
+.log-list-item.active {
+  border-color: rgba(127, 152, 245, 0.5);
+  background: var(--accent-soft);
+}
+
+.log-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.log-item-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.log-item-preview {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.45;
+}
+
+.log-editor-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.log-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.html-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.html-tool-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-right: 6px;
+  border-right: 1px solid var(--border);
+}
+.html-tool-group:last-of-type {
+  border-right: none;
+  padding-right: 0;
+}
+
+.tool-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.3;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.tool-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.tool-btn.source-toggle {
+  margin-left: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  border-color: var(--border);
+}
+.tool-btn.source-toggle.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: rgba(127, 152, 245, 0.4);
+}
+
+.html-editor-surface {
+  min-height: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 16px 18px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.7;
+  outline: none;
+}
+.html-editor-surface:focus {
+  border-color: var(--accent);
+}
+.html-editor-surface:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-muted);
+}
+.html-editor-surface h2 {
+  font-size: 17px;
+  margin: 0.6em 0 0.35em;
+  color: var(--text-primary);
+}
+.html-editor-surface h3 {
+  font-size: 15px;
+  margin: 0.6em 0 0.35em;
+  color: var(--accent);
+}
+.html-editor-surface p {
+  margin: 0.35em 0;
+}
+.html-editor-surface ul,
+.html-editor-surface ol {
+  padding-left: 22px;
+  margin: 0.45em 0;
+}
+.html-editor-surface blockquote {
+  margin: 0.6em 0;
+  padding: 8px 14px;
+  border-left: 3px solid var(--accent);
+  background: rgba(127, 152, 245, 0.07);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-secondary);
+}
+.html-editor-surface hr {
+  border: none;
+  border-top: 1px solid var(--border-strong);
+  margin: 12px 0;
+}
+.html-editor-surface a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.html-source-editor {
+  width: 100%;
+  min-height: 320px;
+  padding: 14px 16px;
+  background: #111317;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: #cdd6f4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+}
+.html-source-editor:focus {
+  border-color: var(--accent);
+}
+
+.log-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+/* ============================================================
    ⑤ 資料庫 & Google Drive 檔案庫視圖
    ============================================================ */
 .db-stats-grid {
@@ -1524,8 +1914,12 @@ button {
 }
 
 @media (max-width: 980px) {
-  .audit-grid {
+  .audit-grid,
+  .logs-layout {
     grid-template-columns: 1fr;
+  }
+  .log-list {
+    max-height: 240px;
   }
   .measure-row {
     grid-template-columns: 1fr 112px 92px;
@@ -1555,7 +1949,7 @@ button {
   /* 手機版固定底部單手導覽列 */
   .mobile-bottom-nav {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     position: fixed;
     left: 0;
     right: 0;
@@ -1737,6 +2131,19 @@ button {
   }
   .form-row {
     grid-template-columns: 1fr;
+  }
+
+  /* 手機版工作日誌編輯器 */
+  .log-editor-card {
+    padding: 14px;
+  }
+  .log-meta-bar .form-field {
+    width: 100% !important;
+  }
+  .html-editor-surface,
+  .html-source-editor {
+    min-height: 240px;
+    font-size: 16px;
   }
 
   .toast-container {

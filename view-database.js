@@ -40,6 +40,7 @@
       { label: '檢核項 (Checklists)', val: data.checklists.length },
       { label: 'Drive 檔案連結', val: data.files.length },
       { label: '覆盤紀錄 (Reviews)', val: data.reviews.length },
+      { label: '工作日誌 (Logs)', val: (data.logs || []).length },
     ];
 
     const fileRowsHtml = files.length
@@ -76,19 +77,20 @@
       : `<tr><td colspan="4" class="muted-text" style="text-align:center;padding:28px;">目前尚無符合條件的 Google Drive 檔案連結。</td></tr>`;
 
     container.innerHTML = `
-      <!-- IndexedDB 資料表即時狀態 + 備份 -->
+      <!-- IndexedDB 資料表即時狀態 + Google Drive 雲端同步與備份 -->
       <div class="section-header">
         <div>
-          <h2 class="section-title">瀏覽器資料庫（IndexedDB · OGSMFlowDB）</h2>
-          <div class="muted-text" style="font-size:12px;">所有異動皆自動即時存檔，建議定期匯出 JSON 備份檔存入您的 Google Drive</div>
+          <h2 class="section-title">資料庫與 Google Drive 雲端同步</h2>
+          <div class="muted-text" style="font-size:12px;">每次異動會自動同步至您 Google Drive 的專屬隱藏空間（appDataFolder），亦可手動匯出 JSON 備份</div>
         </div>
         <div class="row-gap-xs" style="flex-wrap:wrap;">
-          <button class="btn btn-primary btn-sm" id="btnExportJson">↓ 匯出 JSON 備份</button>
+          <button class="btn btn-primary btn-sm" id="btnCloudSyncNow">↻ 立即同步雲端</button>
+          <button class="btn btn-sm" id="btnExportJson">↓ 匯出 JSON</button>
           <label class="btn btn-sm" style="cursor:pointer;">
-            ↑ 匯入 JSON 還原
+            ↑ 匯入 JSON
             <input type="file" id="inputImportJson" accept=".json,application/json" hidden />
           </label>
-          <button class="btn btn-sm btn-danger" id="btnResetDemo">重設範例資料</button>
+          <button class="btn btn-sm btn-danger" id="btnResetDemo">重設範例</button>
         </div>
       </div>
 
@@ -162,6 +164,16 @@
       el.addEventListener('click', () => OGSM.drawer.open(el.dataset.openMeasure));
     });
 
+    // 立即同步雲端
+    const btnCloudSync = container.querySelector('#btnCloudSyncNow');
+    if (btnCloudSync) {
+      btnCloudSync.addEventListener('click', async () => {
+        if (!OGSM.auth) return;
+        await OGSM.auth.pushToDriveNow();
+        store.toast('已將最新資料同步至 Google Drive');
+      });
+    }
+
     // 匯出 JSON 備份
     container.querySelector('#btnExportJson').addEventListener('click', async () => {
       const payload = await OGSM.db.exportAll();
@@ -185,7 +197,8 @@
         if (!confirm('匯入備份將會覆蓋目前瀏覽器資料庫內容，確定要還原嗎？')) return;
         await OGSM.db.importAll(parsed);
         await store.hydrate();
-        store.toast('資料還原成功！');
+        if (OGSM.auth) await OGSM.auth.pushToDriveNow();
+        store.toast('資料還原並同步至雲端成功！');
       } catch (err) {
         alert('匯入失敗：' + err.message);
       } finally {
@@ -198,7 +211,8 @@
       if (!confirm('確定要清空並重新載入初始範例專案嗎？建議先匯出備份。')) return;
       await OGSM.db.resetToSeed();
       await store.hydrate();
-      store.toast('已重設為範例資料');
+      if (OGSM.auth) await OGSM.auth.pushToDriveNow();
+      store.toast('已重設為範例資料並同步雲端');
     });
   }
 
