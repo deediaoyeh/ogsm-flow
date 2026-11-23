@@ -298,6 +298,29 @@
     }
   }
 
+  async function deleteDriveSyncFile() {
+    if (!session.authenticated) return false;
+    clearTimeout(syncTimer);
+    let targetId = session.driveFileId;
+    if (!targetId) {
+      const existing = await findDriveFile();
+      if (existing) targetId = existing.id;
+    }
+    if (!targetId) return false;
+    const res = await driveFetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(targetId)}`,
+      { method: 'DELETE' }
+    );
+    if (!res.ok && res.status !== 404) {
+      throw new Error('刪除 Google Drive 雲端同步檔失敗');
+    }
+    session.driveFileId = null;
+    session.syncStatus = 'idle';
+    session.lastSyncedAt = null;
+    updateSyncUI();
+    return true;
+  }
+
   function scheduleSync() {
     if (!session.authenticated || isPulling) return;
     clearTimeout(syncTimer);
@@ -453,6 +476,7 @@
     startSignIn,
     pullFromDrive,
     pushToDriveNow,
+    deleteDriveSyncFile,
     scheduleSync,
     lockSession,
     updateSyncUI,

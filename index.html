@@ -59,7 +59,10 @@
       <div class="project-switcher">
         <div class="switcher-header">
           <label class="switcher-label" for="projectSelect">目前專案</label>
-          <button id="btnNewProject" class="btn-ghost-xs" title="新增專案">＋ 新增</button>
+          <div class="row-gap-xs">
+            <button id="btnNewProject" class="btn-ghost-xs" title="新增專案">＋ 新增</button>
+            <button id="btnDeleteProject" class="btn-ghost-xs danger" title="刪除目前專案">刪除</button>
+          </div>
         </div>
         <select id="projectSelect" class="select-clean" aria-label="選擇專案"></select>
       </div>

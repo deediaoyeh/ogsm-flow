@@ -193,7 +193,8 @@
               <div class="stat-mini-label">M 平均進度</div>
             </div>
           </div>
-          <div class="row-gap-xs">
+          <div class="row-gap-xs" style="flex-wrap:wrap;justify-content:flex-end;">
+            <button class="btn btn-sm btn-danger" id="btnDeleteProjectOgsm">刪除專案</button>
             <button class="btn btn-sm" id="btnEditProject">編輯目的 O</button>
             <button class="btn btn-sm btn-primary" id="btnAddGoal">＋ 新增目標 G</button>
           </div>
@@ -213,6 +214,9 @@
     `;
 
     // 綁定事件
+    const btnDeleteProjectOgsm = container.querySelector('#btnDeleteProjectOgsm');
+    if (btnDeleteProjectOgsm) btnDeleteProjectOgsm.addEventListener('click', () => OGSM.modals.openDeleteProjectModal(project));
+
     const btnEditProject = container.querySelector('#btnEditProject');
     if (btnEditProject) btnEditProject.addEventListener('click', () => OGSM.modals.openProjectModal(project));
 

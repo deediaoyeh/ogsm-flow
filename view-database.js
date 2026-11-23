@@ -17,7 +17,11 @@
     const measures = store.projectMeasures();
     const measureMap = new Map(measures.map((m) => [m.id, m]));
 
-    const files = store.projectFiles().filter((f) => {
+    const currentProjFiles = store.projectFiles();
+    const archivedFiles = store.retainedFiles();
+    const allVisibleFiles = [...currentProjFiles, ...archivedFiles];
+
+    const files = allVisibleFiles.filter((f) => {
       if (fileTypeFilter !== 'all' && f.driveType !== fileTypeFilter) return false;
       if (q) {
         const linked = f.measureId ? measureMap.get(f.measureId) : null;
@@ -61,12 +65,19 @@
                 <td><span class="pill">${meta.label}</span></td>
                 <td>
                   ${
-                    linked
+                    !f.projectId
+                      ? `<span class="pill amber">已留存（原專案已刪）</span>`
+                      : linked
                       ? `<span class="todo-link-tag" data-open-measure="${esc(linked.id)}">M · ${esc(linked.title)}</span>`
                       : `<span class="pill">專案共用</span>`
                   }
                 </td>
                 <td style="text-align:right;white-space:nowrap;">
+                  ${
+                    !f.projectId && store.state.currentProjectId
+                      ? `<button class="btn btn-sm" data-adopt-file="${esc(f.id)}" title="將此留存檔案移入目前專案">移入專案</button>`
+                      : ''
+                  }
                   <a class="btn btn-sm" href="${esc(safeUrl(f.url))}" target="_blank" rel="noopener noreferrer">開啟 ↗</a>
                   <button class="btn-icon danger" data-del-file="${esc(f.id)}" title="移除連結">✕</button>
                 </td>
@@ -150,6 +161,16 @@
     // 新增 Drive 檔案
     const btnAddFile = container.querySelector('#btnAddDriveFile');
     if (btnAddFile) btnAddFile.addEventListener('click', () => OGSM.modals.openFileModal());
+
+    // 將已留存檔案移入目前專案
+    container.querySelectorAll('[data-adopt-file]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const f = store.state.data.files.find((item) => item.id === btn.dataset.adoptFile);
+        if (!f || !store.state.currentProjectId) return;
+        await store.saveRecord('files', { ...f, projectId: store.state.currentProjectId });
+        store.toast('已將留存檔案移入目前專案');
+      });
+    });
 
     // 刪除檔案連結
     container.querySelectorAll('[data-del-file]').forEach((btn) => {

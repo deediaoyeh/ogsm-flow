@@ -395,7 +395,7 @@
           </div>
           <div class="modal-footer" style="justify-content:space-between;">
             ${
-              isEdit && store.state.data.projects.length > 1
+              isEdit
                 ? `<button type="button" class="btn btn-danger btn-sm" id="btnDelProj">刪除專案</button>`
                 : '<span></span>'
             }
@@ -410,16 +410,14 @@
         body.querySelector('[data-close-modal]').addEventListener('click', closeModal);
         const delBtn = body.querySelector('#btnDelProj');
         if (delBtn) {
-          delBtn.addEventListener('click', async () => {
-            if (!confirm(`確定要刪除整個「${existing.name}」專案及其資料嗎？`)) return;
-            await store.deleteProjectCascade(existing.id);
-            closeModal();
-            store.toast('已刪除專案');
+          delBtn.addEventListener('click', () => {
+            openDeleteProjectModal(existing);
           });
         }
         body.querySelector('#modalProjectForm').addEventListener('submit', async (e) => {
           e.preventDefault();
           const fd = new FormData(e.target);
+          localStorage.removeItem('ogsm_user_deleted_all');
           const record = {
             id: existing ? existing.id : OGSM.db.uid('proj'),
             name: String(fd.get('name')).trim(),
@@ -431,6 +429,121 @@
           if (!isEdit) store.setProject(record.id);
           closeModal();
           store.toast(isEdit ? '已更新專案目的' : '已建立新專案');
+        });
+      }
+    );
+  }
+
+  function openDeleteProjectModal(project) {
+    const store = OGSM.store;
+    const { esc, safeUrl } = store;
+    if (!project) {
+      store.toast('目前沒有可刪除的專案');
+      return;
+    }
+
+    const projFiles = store.state.data.files.filter((f) => f.projectId === project.id);
+    const isLastProject = store.state.data.projects.length <= 1;
+
+    openModal(
+      `刪除專案：${project.name}`,
+      `
+        <form class="form-stack" id="modalDeleteProjectForm">
+          <div class="auth-message error" style="margin:0;">
+            刪除後將移除「${esc(project.name)}」底下的所有目標 G、策略 S、行動 M、待辦、檢核清單、覆盤與工作日誌。
+          </div>
+
+          <!-- 1. 專案掛載的 Google Drive 檔案連結處置 -->
+          <div class="form-field">
+            <label>① 此專案內記錄的 Google Drive 檔案連結（共 ${projFiles.length} 筆）</label>
+            <label class="radio-option-card">
+              <input type="radio" name="fileLinkAction" value="keep" checked />
+              <div>
+                <strong>留存檔案連結（推薦）</strong>
+                <div class="muted-text" style="font-size:11.5px;">刪除專案但保留這些 Google Drive 連結在「檔案庫（已留存）」，日後可隨時開啟或轉移到新專案。</div>
+              </div>
+            </label>
+            <label class="radio-option-card">
+              <input type="radio" name="fileLinkAction" value="delete" />
+              <div>
+                <strong>一併移除專案內的檔案連結記錄</strong>
+                <div class="muted-text" style="font-size:11.5px;">從系統資料庫清除連結；因本系統採最小權限 <code>drive.appdata</code>，不會擅自刪除您 Google Drive 原檔。</div>
+              </div>
+            </label>
+          </div>
+
+          ${
+            projFiles.length
+              ? `<div class="form-field">
+                  <label>若也要在 Google Drive 本體刪除檔案，可直接點開處理：</label>
+                  <div class="log-link-chips" style="max-height:92px;overflow-y:auto;">
+                    ${projFiles
+                      .map(
+                        (f) =>
+                          `<a class="drive-chip" href="${esc(safeUrl(f.url))}" target="_blank" rel="noopener noreferrer">${esc(f.name)} ↗</a>`
+                      )
+                      .join('')}
+                  </div>
+                </div>`
+              : ''
+          }
+
+          <!-- 2. Google Drive 雲端同步資料庫檔案處置 -->
+          <div class="form-field">
+            <label>② Google Drive 雲端同步檔（<code>ogsm-flow-db.json</code>）</label>
+            <label class="radio-option-card">
+              <input type="radio" name="cloudAction" value="sync" checked />
+              <div>
+                <strong>立即同步刪除結果至 Google Drive</strong>
+                <div class="muted-text" style="font-size:11.5px;">更新雲端檔案，讓手機與電腦同步移除此專案。</div>
+              </div>
+            </label>
+            <label class="radio-option-card">
+              <input type="radio" name="cloudAction" value="keep_cloud" />
+              <div>
+                <strong>暫時留存 Google Drive 原雲端檔（不覆寫）</strong>
+                <div class="muted-text" style="font-size:11.5px;">先僅刪除本機畫面上的專案，保留 Google Drive 雲端舊檔作為備份（下次登入會重新載入，或您可先匯出 JSON）。</div>
+              </div>
+            </label>
+            ${
+              isLastProject
+                ? `<label class="radio-option-card danger">
+                    <input type="radio" name="cloudAction" value="delete_cloud_file" />
+                    <div>
+                      <strong>直接刪除 Google Drive 內的同步檔（完全清空雲端）</strong>
+                      <div class="muted-text" style="font-size:11.5px;">此為最後一個專案，將直接移除 Google Drive 隱藏空間中的 <code>ogsm-flow-db.json</code>。</div>
+                    </div>
+                  </label>`
+                : ''
+            }
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn" data-close-modal>取消</button>
+            <button type="submit" class="btn btn-danger">確認刪除專案</button>
+          </div>
+        </form>
+      `,
+      (body) => {
+        body.querySelector('[data-close-modal]').addEventListener('click', closeModal);
+        body.querySelector('#modalDeleteProjectForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          const keepFileLinks = fd.get('fileLinkAction') !== 'delete';
+          const cloudAction = String(fd.get('cloudAction') || 'sync');
+          try {
+            await store.deleteProjectCascade(project.id, { keepFileLinks, cloudAction });
+            closeModal();
+            if (cloudAction === 'delete_cloud_file') {
+              store.toast('已刪除專案並移除 Google Drive 雲端同步檔');
+            } else if (cloudAction === 'keep_cloud') {
+              store.toast('已刪除本機專案（Google Drive 雲端檔案已留存）');
+            } else {
+              store.toast(keepFileLinks ? '已刪除專案並留存 Google Drive 連結' : '已刪除專案並同步至 Google Drive');
+            }
+          } catch (err) {
+            store.toast('刪除過程發生錯誤：' + err.message);
+          }
         });
       }
     );
@@ -823,6 +936,7 @@
     openModal,
     closeModal,
     openProjectModal,
+    openDeleteProjectModal,
     openGoalModal,
     openStrategyModal,
     openMeasureCreateModal,

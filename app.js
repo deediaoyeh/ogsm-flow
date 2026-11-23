@@ -65,6 +65,11 @@
           .join('')
       : `<option value="">尚無專案</option>`;
 
+    const btnDeleteProj = document.getElementById('btnDeleteProject');
+    if (btnDeleteProj) {
+      btnDeleteProj.hidden = !project;
+    }
+
     // 更新側邊欄與手機底部導覽高亮與徽章
     document.querySelectorAll('.nav-item[data-view], .bottom-nav-item[data-view]').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.view === view);
@@ -125,6 +130,14 @@
     document.getElementById('btnNewProject').addEventListener('click', () => {
       OGSM.modals.openProjectModal();
     });
+
+    // 刪除目前專案
+    const btnDelProj = document.getElementById('btnDeleteProject');
+    if (btnDelProj) {
+      btnDelProj.addEventListener('click', () => {
+        OGSM.modals.openDeleteProjectModal(store.currentProject());
+      });
+    }
 
     function closeMobileSidebar() {
       document.getElementById('sidebar').classList.remove('open');

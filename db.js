@@ -437,6 +437,9 @@
   }
 
   async function ensureSeeded() {
+    if (localStorage.getItem('ogsm_user_deleted_all') === '1') {
+      return false;
+    }
     const projects = await getAll('projects');
     if (projects.length === 0) {
       await importAll({ data: buildSeedData() });
@@ -446,6 +449,7 @@
   }
 
   async function resetToSeed() {
+    localStorage.removeItem('ogsm_user_deleted_all');
     await importAll({ data: buildSeedData() });
   }
 

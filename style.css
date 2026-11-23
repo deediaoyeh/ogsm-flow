@@ -621,6 +621,43 @@ button {
 .btn-ghost-xs:hover {
   background: var(--accent-soft);
 }
+.btn-ghost-xs.danger {
+  color: var(--red);
+}
+.btn-ghost-xs.danger:hover {
+  background: var(--red-soft);
+}
+
+.radio-option-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-app);
+  cursor: pointer;
+  margin-top: 6px;
+  transition: border-color var(--transition), background var(--transition);
+}
+.radio-option-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-surface-2);
+}
+.radio-option-card.danger {
+  border-color: rgba(220, 118, 118, 0.35);
+}
+.radio-option-card input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+.radio-option-card strong {
+  display: block;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
 
 .btn-icon {
   width: 30px;

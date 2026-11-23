@@ -175,6 +175,10 @@
     return state.data.files.filter((f) => f.projectId === state.currentProjectId);
   }
 
+  function retainedFiles() {
+    return state.data.files.filter((f) => !f.projectId);
+  }
+
   function projectReviews() {
     return state.data.reviews
       .filter((r) => r.projectId === state.currentProjectId)
@@ -291,8 +295,35 @@
     await deleteRecord('goals', goalId);
   }
 
-  async function deleteProjectCascade(projectId) {
-    const stores = ['goals', 'strategies', 'measures', 'todos', 'checklists', 'files', 'reviews', 'logs'];
+  async function deleteProjectCascade(projectId, options) {
+    const opts = options || {};
+    const keepFileLinks = opts.keepFileLinks !== false;
+    const cloudAction = opts.cloudAction || 'sync'; // 'sync' | 'keep_cloud' | 'delete_cloud_file'
+    const targetProject = state.data.projects.find((p) => p.id === projectId);
+    const projectName = targetProject ? targetProject.name : '已刪除專案';
+
+    // 處理專案內掛載的 Google Drive 檔案連結（留存或刪除）
+    const projFiles = state.data.files.filter((f) => f.projectId === projectId);
+    if (keepFileLinks) {
+      for (const f of projFiles) {
+        const updated = {
+          ...f,
+          projectId: null,
+          measureId: null,
+          note: f.note ? `${f.note}（原專案：${projectName}）` : `原專案：${projectName}`,
+        };
+        await OGSM.db.put('files', updated);
+        const idx = state.data.files.findIndex((item) => item.id === f.id);
+        if (idx >= 0) state.data.files[idx] = updated;
+      }
+    } else {
+      for (const f of projFiles) {
+        await OGSM.db.remove('files', f.id);
+      }
+      state.data.files = state.data.files.filter((f) => f.projectId !== projectId);
+    }
+
+    const stores = ['goals', 'strategies', 'measures', 'todos', 'checklists', 'reviews', 'logs'];
     for (const s of stores) {
       const items = state.data[s].filter((r) => r.projectId === projectId);
       for (const item of items) await OGSM.db.remove(s, item.id);
@@ -302,8 +333,22 @@
     state.data.projects = state.data.projects.filter((p) => p.id !== projectId);
     state.currentProjectId = state.data.projects[0] ? state.data.projects[0].id : null;
     localStorage.setItem('ogsm_current_project', state.currentProjectId || '');
+
+    if (state.data.projects.length === 0) {
+      localStorage.setItem('ogsm_user_deleted_all', '1');
+    }
+
     notify();
-    triggerCloudSync();
+
+    // 依使用者選擇處理 Google Drive 雲端同步檔案
+    if (OGSM.auth && OGSM.auth.session && OGSM.auth.session.authenticated) {
+      if (cloudAction === 'delete_cloud_file') {
+        await OGSM.auth.deleteDriveSyncFile();
+      } else if (cloudAction === 'sync') {
+        await OGSM.auth.pushToDriveNow();
+      }
+      // cloudAction === 'keep_cloud' 則保留雲端原本的同步檔不覆寫
+    }
   }
 
   function renderDriveChip(file) {
@@ -342,6 +387,7 @@
     projectChecklists,
     measureFiles,
     projectFiles,
+    retainedFiles,
     projectReviews,
     projectLogs,
     goalRate,
