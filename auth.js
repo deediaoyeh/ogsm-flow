@@ -421,6 +421,125 @@
     return true;
   }
 
+  async function deleteDriveBlob(fileId) {
+    if (!session.authenticated || !fileId) return false;
+    try {
+      const res = await driveFetch(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`,
+        { method: 'DELETE' }
+      );
+      return res.ok || res.status === 404;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // 無檔案大小上限：使用 Google Drive Resumable Upload API 將本機檔案直接串流存入 appDataFolder
+  async function uploadDriveBlob(file, onProgress) {
+    if (!session.authenticated || !session.accessToken || Date.now() >= session.expiresAt) {
+      throw new Error('請先完成 Google 帳號驗證後再上傳檔案。');
+    }
+    const mimeType = file.type || 'application/octet-stream';
+    const metadata = {
+      name: file.name || 'unnamed-file',
+      parents: ['appDataFolder'],
+      mimeType,
+    };
+
+    const initRes = await driveFetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,size,mimeType',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Type': mimeType,
+          'X-Upload-Content-Length': String(file.size || 0),
+        },
+        body: JSON.stringify(metadata),
+      }
+    );
+
+    if (!initRes.ok) {
+      throw new Error(`初始化 Google Drive 上傳失敗 (${initRes.status})`);
+    }
+    const uploadUrl = initRes.headers.get('Location');
+    if (!uploadUrl) {
+      throw new Error('無法取得 Google Drive 上傳通道位址');
+    }
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl, true);
+      xhr.setRequestHeader('Content-Type', mimeType);
+
+      xhr.upload.onprogress = (ev) => {
+        if (typeof onProgress === 'function' && ev.lengthComputable && ev.total > 0) {
+          onProgress(Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          if (typeof onProgress === 'function') onProgress(100);
+          try {
+            const created = JSON.parse(xhr.responseText);
+            resolve({
+              driveFileId: created.id,
+              name: created.name || file.name,
+              size: Number(created.size || file.size) || 0,
+              mimeType: created.mimeType || mimeType,
+            });
+          } catch (err) {
+            reject(new Error('解析上傳回應失敗'));
+          }
+        } else {
+          reject(new Error(`Google Drive 檔案上傳失敗 (${xhr.status})`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('網路連線中斷，檔案上傳失敗'));
+      xhr.send(file);
+    });
+  }
+
+  // 從 Google Drive appDataFolder 串流下載或新分頁預覽已上傳的檔案
+  async function openOrDownloadDriveBlob(driveFileId, fileName, mimeType, forceDownload) {
+    if (!driveFileId) return;
+    OGSM.store.toast(`正在從 Google Drive 載入「${fileName || '檔案'}」...`);
+    const res = await driveFetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(driveFileId)}?alt=media`
+    );
+    if (!res.ok) {
+      throw new Error(`無法下載檔案 (${res.status})`);
+    }
+    const rawBlob = await res.blob();
+    const typedBlob = mimeType ? new Blob([rawBlob], { type: mimeType }) : rawBlob;
+    const blobUrl = URL.createObjectURL(typedBlob);
+
+    const canPreview =
+      !forceDownload &&
+      Boolean(mimeType) &&
+      (/^(image\/|text\/|application\/pdf|audio\/|video\/)/i.test(mimeType));
+
+    if (canPreview) {
+      const win = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fileName || 'download';
+        a.click();
+      }
+    } else {
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName || 'download';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  }
+
   function scheduleSync() {
     if (!session.authenticated || isPulling) return;
     clearTimeout(syncTimer);
@@ -589,6 +708,9 @@
     pullFromDrive,
     pushToDriveNow,
     deleteDriveSyncFile,
+    uploadDriveBlob,
+    openOrDownloadDriveBlob,
+    deleteDriveBlob,
     scheduleSync,
     markLocalDirty,
     markDeletedId,

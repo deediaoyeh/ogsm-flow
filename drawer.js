@@ -113,34 +113,50 @@
         </div>
       </form>
 
-      <!-- Google Drive 相關檔案 -->
+      <!-- Google Drive 相關檔案（支援連結＋本機多檔拖曳無上限上傳） -->
       <div class="drawer-section">
         <h3 class="drawer-section-title">
-          <span>Google Drive 相關檔案 (${files.length})</span>
+          <span>相關檔案 (${files.length})</span>
         </h3>
         <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
           ${
             files.length
               ? files
                   .map((f) => {
-                    const meta = OGSM.db.driveTypeMeta(f.driveType);
+                    const isBlob = f.kind === 'drive_blob' && f.driveFileId;
+                    const meta = isBlob ? { label: '上傳檔案', cls: 'link' } : OGSM.db.driveTypeMeta(f.driveType);
                     return `
                       <div class="checklist-row">
-                        <span class="drive-dot ${meta.cls}"></span>
-                        <a href="${esc(safeUrl(f.url))}" target="_blank" rel="noopener noreferrer"
-                           style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                          ${esc(f.name)}
-                        </a>
+                        ${isBlob ? '<span aria-hidden="true">📎</span>' : `<span class="drive-dot ${meta.cls}"></span>`}
+                        ${
+                          isBlob
+                            ? `<button type="button" class="chip-jump"
+                                       style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent);"
+                                       data-open-drive-blob="${esc(f.driveFileId)}"
+                                       data-blob-name="${esc(f.name)}"
+                                       data-blob-mime="${esc(f.mimeType || '')}">${esc(f.name)}</button>`
+                            : `<a href="${esc(safeUrl(f.url))}" target="_blank" rel="noopener noreferrer"
+                                  style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                                 ${esc(f.name)}
+                               </a>`
+                        }
                         <span class="muted-text" style="font-size:11px;">${meta.label}</span>
                         <button class="btn-icon danger" style="width:24px;height:24px;font-size:11px;"
-                                data-drawer-del-file="${esc(f.id)}" title="移除連結">✕</button>
+                                data-drawer-del-file="${esc(f.id)}"
+                                data-drive-blob-id="${esc(f.driveFileId || '')}"
+                                title="移除檔案">✕</button>
                       </div>
                     `;
                   })
                   .join('')
-              : `<div class="muted-text" style="font-size:12px;">尚無連結，貼上 Google Drive 網址即可從甘特圖直接點開。</div>`
+              : `<div class="muted-text" style="font-size:12px;">尚無檔案，可直接拖曳本機檔案或貼上 Google Drive 網址。</div>`
           }
         </div>
+        <label class="dropzone-box compact" id="drawerFileDropzone" style="margin-bottom:8px;">
+          <input type="file" id="drawerUploadFileInput" multiple hidden />
+          <span class="dropzone-title">＋ 拖曳本機檔案至此處，或點擊選擇上傳（不限大小）</span>
+        </label>
+        <div class="upload-progress-box" id="drawerUploadProgress" hidden style="margin-bottom:8px;"></div>
         <form class="form-stack" id="drawerAddFileForm" style="gap:7px;">
           <input type="text" class="input" name="name" placeholder="檔案名稱（例如：專案簡報 v2）" required style="padding:7px 10px;font-size:12.5px;" />
           <div class="row-gap-xs drawer-file-url-row">
@@ -293,10 +309,73 @@
       store.toast('已掛載 Google Drive 檔案');
     });
 
+    // 抽屜內本機多檔拖曳／選檔無上限上傳
+    const drawerDropzone = body.querySelector('#drawerFileDropzone');
+    const drawerUploadInput = body.querySelector('#drawerUploadFileInput');
+    const drawerProgress = body.querySelector('#drawerUploadProgress');
+    async function uploadDrawerFiles(fileList) {
+      const filesArr = Array.from(fileList || []);
+      if (!filesArr.length) return;
+      drawerProgress.hidden = false;
+      for (let i = 0; i < filesArr.length; i++) {
+        const file = filesArr[i];
+        try {
+          drawerProgress.innerHTML = `<div class="muted-text" style="font-size:11.5px;">上傳中 (${i + 1}/${filesArr.length})：${esc(file.name)} (0%)...</div><div class="progress-track"><div class="progress-fill" style="width:2%"></div></div>`;
+          const uploaded = await OGSM.auth.uploadDriveBlob(file, (pct) => {
+            drawerProgress.innerHTML = `<div class="muted-text" style="font-size:11.5px;">上傳中 (${i + 1}/${filesArr.length})：${esc(file.name)} (${pct}%)...</div><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>`;
+          });
+          await store.saveRecord('files', {
+            id: OGSM.db.uid('file'),
+            projectId: m.projectId,
+            measureId: m.id,
+            kind: 'drive_blob',
+            driveFileId: uploaded.driveFileId,
+            name: uploaded.name,
+            url: '',
+            size: uploaded.size,
+            mimeType: uploaded.mimeType,
+            driveType: 'upload',
+            note: `行動 M：${m.title}`,
+            createdAt: new Date().toISOString(),
+          });
+          store.toast(`已上傳檔案：${uploaded.name}`);
+        } catch (err) {
+          alert(`上傳「${file.name}」失敗：${err.message}`);
+        }
+      }
+      drawerProgress.hidden = true;
+      drawerProgress.innerHTML = '';
+    }
+    if (drawerUploadInput) {
+      drawerUploadInput.addEventListener('change', async (e) => {
+        await uploadDrawerFiles(e.target.files);
+        e.target.value = '';
+      });
+    }
+    if (drawerDropzone) {
+      drawerDropzone.addEventListener('dragover', (e) => {
+        if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+          e.preventDefault();
+          drawerDropzone.classList.add('drag-over');
+        }
+      });
+      drawerDropzone.addEventListener('dragleave', () => drawerDropzone.classList.remove('drag-over'));
+      drawerDropzone.addEventListener('drop', async (e) => {
+        drawerDropzone.classList.remove('drag-over');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          e.preventDefault();
+          await uploadDrawerFiles(e.dataTransfer.files);
+        }
+      });
+    }
+
     body.querySelectorAll('[data-drawer-del-file]').forEach((btn) => {
       btn.addEventListener('click', async () => {
+        if (btn.dataset.driveBlobId && OGSM.auth) {
+          OGSM.auth.deleteDriveBlob(btn.dataset.driveBlobId);
+        }
         await store.deleteRecord('files', btn.dataset.drawerDelFile);
-        store.toast('已移除檔案連結');
+        store.toast('已移除檔案');
       });
     });
 

@@ -630,6 +630,19 @@
   }
 
   function renderDriveChip(file) {
+    if (file.kind === 'drive_blob' && file.driveFileId) {
+      return `
+        <button type="button" class="drive-chip"
+                data-open-drive-blob="${esc(file.driveFileId)}"
+                data-blob-name="${esc(file.name)}"
+                data-blob-mime="${esc(file.mimeType || '')}"
+                title="${esc(file.name)}（已上傳至 Google Drive）— 點擊開啟／下載"
+                onclick="event.stopPropagation()">
+          <span aria-hidden="true">📎</span>
+          <span class="drive-chip-name">${esc(file.name)}</span>
+        </button>
+      `;
+    }
     const meta = OGSM.db.driveTypeMeta(file.driveType);
     return `
       <a class="drive-chip" href="${esc(safeUrl(file.url))}" target="_blank" rel="noopener noreferrer"

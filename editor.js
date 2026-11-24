@@ -6,7 +6,6 @@
   'use strict';
 
   const OGSM = (global.OGSM = global.OGSM || {});
-  const MAX_INLINE_FILE_BYTES = 2 * 1024 * 1024; // 2MB 上限以維持 Google Drive JSON 同步流暢
 
   function esc(str) {
     return OGSM.store ? OGSM.store.esc(str) : String(str == null ? '' : str);
@@ -132,6 +131,19 @@
       <div class="note-attachments-row" onclick="event.stopPropagation()">
         ${list
           .map((att) => {
+            if (att.kind === 'drive_blob' && att.driveFileId) {
+              return `
+                <button type="button" class="drive-chip attach-chip"
+                        data-open-drive-blob="${esc(att.driveFileId)}"
+                        data-blob-name="${esc(att.name || 'attachment')}"
+                        data-blob-mime="${esc(att.mimeType || '')}"
+                        title="點擊開啟／下載附檔：${esc(att.name)}${att.size ? ' (' + formatBytes(att.size) + ')' : ''}"
+                        onclick="event.stopPropagation()">
+                  <span aria-hidden="true">📎</span>
+                  <span class="drive-chip-name">${esc(att.name)}</span>
+                </button>
+              `;
+            }
             if (att.kind === 'upload' && att.dataUrl) {
               return `
                 <a class="drive-chip attach-chip" href="${esc(att.dataUrl)}" download="${esc(att.name || 'attachment')}"
@@ -197,26 +209,25 @@
           <button type="button" class="tool-btn source-toggle" data-act="source" title="切換 HTML 原始碼">&lt;/&gt; HTML</button>
         </div>
 
-        <!-- 展開式附檔新增列（支援雲端連結與直接上傳檔案） -->
+        <!-- 展開式附檔新增列（支援雲端連結與無上限本機拖曳/選檔上傳） -->
         <div class="editor-attach-panel" data-attach-panel hidden>
           <div class="attach-panel-row">
             <input type="text" class="input" data-att-name placeholder="附檔名稱（選填，未填自動帶入）" />
             <input type="url" class="input" data-att-url placeholder="貼上 Google Drive 或雲端網址 (https://...)" />
             <button type="button" class="btn btn-sm btn-primary" data-att-add-url>加入連結附檔</button>
           </div>
-          <div class="attach-panel-upload">
-            <label class="btn btn-sm" style="cursor:pointer;">
-              ＋ 從裝置選擇檔案上傳（2MB 內）
-              <input type="file" data-att-file hidden />
-            </label>
-            <span class="muted-text" style="font-size:11px;">較大檔案建議貼上 Google Drive 連結，同步最快且不佔容量</span>
-          </div>
+          <label class="dropzone-box compact" data-att-dropzone>
+            <input type="file" data-att-file multiple hidden />
+            <span class="dropzone-title">＋ 拖曳本機檔案至此處，或點擊選擇上傳（不限大小・支援多檔）</span>
+            <span class="dropzone-sub">直接串流存入您的 Google Drive 專屬空間，跨裝置同步且不拖慢速度</span>
+          </label>
+          <div class="upload-progress-box" data-att-progress hidden></div>
         </div>
 
         <div class="html-editor-surface mini"
              data-visual
              contenteditable="true"
-             data-placeholder="${esc(opts.placeholder || '填寫備註內容，貼上網址會自動變成可點選連結，亦可點擊上方「📎 附檔」加入檔案...')}">${initialClean}</div>
+             data-placeholder="${esc(opts.placeholder || '填寫備註內容，貼上網址會自動變成可點選連結，亦可直接拖曳本機檔案至此加入附檔...')}">${initialClean}</div>
 
         <textarea class="html-source-editor mini"
                   data-source
@@ -232,6 +243,8 @@
     const sourceEl = hostEl.querySelector('[data-source]');
     const attachPanel = hostEl.querySelector('[data-attach-panel]');
     const attListEl = hostEl.querySelector('[data-att-list]');
+    const attDropzone = hostEl.querySelector('[data-att-dropzone]');
+    const attProgressEl = hostEl.querySelector('[data-att-progress]');
     const btnSource = hostEl.querySelector('[data-act="source"]');
 
     function renderAttachmentsList() {
@@ -241,6 +254,21 @@
       }
       attListEl.innerHTML = attachments
         .map((att) => {
+          if (att.kind === 'drive_blob' && att.driveFileId) {
+            return `
+              <span class="log-audit-chip">
+                <span aria-hidden="true">📎</span>
+                <button type="button" class="chip-jump log-audit-chip-text"
+                        style="color:var(--accent);"
+                        data-open-drive-blob="${esc(att.driveFileId)}"
+                        data-blob-name="${esc(att.name)}"
+                        data-blob-mime="${esc(att.mimeType || '')}">
+                  ${esc(att.name)}${att.size ? ` (${formatBytes(att.size)})` : ''}
+                </button>
+                <button type="button" class="chip-remove" data-rm-att="${esc(att.id)}" title="移除附檔">✕</button>
+              </span>
+            `;
+          }
           const isUpload = att.kind === 'upload' && att.dataUrl;
           const href = isUpload ? att.dataUrl : safeUrl(att.url);
           const meta = isUpload ? null : OGSM.db.driveTypeMeta(att.driveType || OGSM.db.detectDriveType(att.url, att.name));
@@ -260,10 +288,45 @@
       attListEl.querySelectorAll('[data-rm-att]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const id = btn.dataset.rmAtt;
+          const removed = attachments.find((a) => a.id === id);
+          if (removed && removed.kind === 'drive_blob' && removed.driveFileId && OGSM.auth) {
+            OGSM.auth.deleteDriveBlob(removed.driveFileId);
+          }
           attachments = attachments.filter((a) => a.id !== id);
           renderAttachmentsList();
         });
       });
+    }
+
+    async function handleLocalFilesUpload(fileList) {
+      const files = Array.from(fileList || []);
+      if (!files.length) return;
+      attachPanel.hidden = false;
+      attProgressEl.hidden = false;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          attProgressEl.innerHTML = `<div class="muted-text" style="font-size:12px;">正在上傳 (${i + 1}/${files.length})：${esc(file.name)} (0%)...</div><div class="progress-track"><div class="progress-fill" style="width:2%"></div></div>`;
+          const uploaded = await OGSM.auth.uploadDriveBlob(file, (pct) => {
+            attProgressEl.innerHTML = `<div class="muted-text" style="font-size:12px;">正在上傳 (${i + 1}/${files.length})：${esc(file.name)} (${pct}%)...</div><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>`;
+          });
+          attachments.push({
+            id: OGSM.db.uid('att'),
+            kind: 'drive_blob',
+            driveFileId: uploaded.driveFileId,
+            name: uploaded.name,
+            mimeType: uploaded.mimeType,
+            size: uploaded.size,
+            createdAt: new Date().toISOString(),
+          });
+          renderAttachmentsList();
+          OGSM.store.toast(`已上傳附檔：${uploaded.name}`);
+        } catch (err) {
+          alert(`上傳「${file.name}」失敗：${err.message}`);
+        }
+      }
+      attProgressEl.hidden = true;
+      attProgressEl.innerHTML = '';
     }
 
     renderAttachmentsList();
@@ -352,31 +415,29 @@
       OGSM.store.toast(`已加入附檔：${name}`);
     });
 
-    // 從裝置選擇檔案直接附掛（≤ 2MB）
-    hostEl.querySelector('[data-att-file]').addEventListener('change', (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-      if (file.size > MAX_INLINE_FILE_BYTES) {
-        alert(`「${file.name}」大小為 ${formatBytes(file.size)}，超過 2MB 限制。為確保 Google Drive 同步順暢，請先上傳至 Google Drive 再貼上連結加入附檔！`);
-        e.target.value = '';
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        attachments.push({
-          id: OGSM.db.uid('att'),
-          kind: 'upload',
-          name: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          size: file.size,
-          dataUrl: String(reader.result || ''),
-          createdAt: new Date().toISOString(),
-        });
-        renderAttachmentsList();
-        OGSM.store.toast(`已附掛檔案：${file.name}`);
-      };
-      reader.readAsDataURL(file);
+    // 從裝置選擇檔案直接上傳（無大小限制，支援多檔）
+    hostEl.querySelector('[data-att-file]').addEventListener('change', async (e) => {
+      await handleLocalFilesUpload(e.target.files);
       e.target.value = '';
+    });
+
+    // 支援將本機檔案直接拖曳至附檔區或備註編輯畫布上傳
+    [attDropzone, visualEl].forEach((zone) => {
+      if (!zone) return;
+      zone.addEventListener('dragover', (e) => {
+        if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+          e.preventDefault();
+          zone.classList.add('drag-over');
+        }
+      });
+      zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+      zone.addEventListener('drop', async (e) => {
+        zone.classList.remove('drag-over');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          e.preventDefault();
+          await handleLocalFilesUpload(e.dataTransfer.files);
+        }
+      });
     });
 
     // 切換 HTML 原始碼

@@ -212,11 +212,23 @@
               }
             }
 
-            // Google Drive 快捷按鈕（直接開檔，零干擾）
+            // Google Drive 快捷按鈕（支援連結與已上傳之雲端檔案）
             const driveButtonsHtml = files.length
               ? files
                   .slice(0, 3)
                   .map((f) => {
+                    if (f.kind === 'drive_blob' && f.driveFileId) {
+                      return `
+                        <button type="button" class="drive-mini-btn"
+                                data-open-drive-blob="${esc(f.driveFileId)}"
+                                data-blob-name="${esc(f.name)}"
+                                data-blob-mime="${esc(f.mimeType || '')}"
+                                title="${esc(f.name)}（上傳檔案）— 點擊開啟／下載"
+                                onclick="event.stopPropagation()">
+                          <span style="font-size:11px;" aria-hidden="true">📎</span>
+                        </button>
+                      `;
+                    }
                     const meta = OGSM.db.driveTypeMeta(f.driveType);
                     return `
                       <a class="drive-mini-btn" href="${esc(safeUrl(f.url))}" target="_blank" rel="noopener noreferrer"
@@ -227,7 +239,7 @@
                     `;
                   })
                   .join('') + (files.length > 3 ? `<span class="muted-text" style="font-size:10.5px;">+${files.length - 3}</span>` : '')
-              : `<button class="drive-mini-btn" data-open-measure="${esc(m.id)}" title="新增 Google Drive 檔案連結" style="color:var(--text-muted);">＋</button>`;
+              : `<button class="drive-mini-btn" data-open-measure="${esc(m.id)}" title="新增或上傳相關檔案" style="color:var(--text-muted);">＋</button>`;
 
             return `
               <div class="gantt-row task-row">

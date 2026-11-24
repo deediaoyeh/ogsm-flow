@@ -294,6 +294,36 @@
       });
     }
 
+    // 全域攔截點選「已上傳至 Google Drive 的附檔」以串流預覽或下載
+    document.addEventListener('click', async (e) => {
+      const openBtn = e.target.closest('[data-open-drive-blob]');
+      const dlBtn = e.target.closest('[data-download-drive-blob]');
+      const btn = openBtn || dlBtn;
+      if (!btn || !OGSM.auth) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const driveFileId = btn.dataset.openDriveBlob || btn.dataset.downloadDriveBlob;
+      const name = btn.dataset.blobName || 'download';
+      const mime = btn.dataset.blobMime || '';
+      try {
+        await OGSM.auth.openOrDownloadDriveBlob(driveFileId, name, mime, Boolean(dlBtn));
+      } catch (err) {
+        alert('無法載入檔案：' + err.message);
+      }
+    });
+
+    // 防止在非拖曳區誤觸拖檔導致瀏覽器直接跳離目前頁面
+    window.addEventListener('dragover', (e) => {
+      if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+        e.preventDefault();
+      }
+    });
+    window.addEventListener('drop', (e) => {
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        e.preventDefault();
+      }
+    });
+
     // ESC 鍵關閉彈窗或抽屜
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {

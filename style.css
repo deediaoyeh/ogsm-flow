@@ -2428,6 +2428,58 @@ button {
   max-width: 240px;
 }
 
+/* 本機拖曳上傳區與即時上傳進度條（日系淡雅風） */
+.dropzone-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 20px 16px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-app);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), transform var(--transition);
+}
+.dropzone-box.compact {
+  padding: 12px 12px;
+  border-radius: var(--radius-sm);
+}
+.dropzone-box:hover,
+.dropzone-box.drag-over,
+.html-editor-surface.drag-over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.dropzone-title {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--accent-hover);
+}
+.dropzone-box.compact .dropzone-title {
+  font-size: 12px;
+}
+.dropzone-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.upload-progress-box {
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.upload-progress-box[hidden] {
+  display: none;
+}
+
 /* ============================================================
    ⑤ 資料庫 & Google Drive 檔案庫視圖
    ============================================================ */
