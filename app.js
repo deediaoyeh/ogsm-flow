@@ -43,11 +43,22 @@
       actionLabel: '＋ 建立本期覆盤',
       onAction: () => OGSM.modals.openReviewModal(),
     },
-    database: {
-      title: '資料庫 & Google Drive 檔案庫',
-      subtitle: '檢視瀏覽器資料庫狀態、統一整理 Drive 檔案連結與匯出備份',
+    files: {
+      title: '專案檔案庫',
+      subtitle: '自動集中彙整本專案所有 Google Drive 檔案與 O / G / S / M 備註附檔',
       actionLabel: '＋ 新增 Drive 連結',
       onAction: () => OGSM.modals.openFileModal(),
+    },
+    database: {
+      title: '資料庫 & 雲端備份',
+      subtitle: '檢視瀏覽器資料庫狀態、Google Drive 雲端同步與 JSON 安全備份還原',
+      actionLabel: '↻ 立即同步雲端',
+      onAction: async () => {
+        if (OGSM.auth) {
+          await OGSM.auth.pushToDriveNow();
+          OGSM.store.toast('已與 Google Drive 完成同步');
+        }
+      },
     },
   };
 
@@ -109,6 +120,13 @@
     badgeCheck.textContent = summary.pendingChecks;
     badgeCheck.hidden = summary.pendingChecks === 0;
 
+    const badgeFiles = document.getElementById('badgeFiles');
+    if (badgeFiles && OGSM.views.files && typeof OGSM.views.files.collectProjectFiles === 'function') {
+      const totalFiles = OGSM.views.files.collectProjectFiles(store).length;
+      badgeFiles.textContent = totalFiles;
+      badgeFiles.hidden = totalFiles === 0;
+    }
+
     // 側邊欄底部極簡進度摘要
     document.getElementById('sidebarGoalRate').textContent = `${summary.avgGoalRate}%`;
     const bar = document.getElementById('sidebarGoalBar');
@@ -127,7 +145,8 @@
       todo: '全部專案總 To-Do 清單',
       logs: '跨專案執行時間軸',
       audit: '全部專案總檢核清單 & 覆盤',
-      database: '全部專案檔案庫 & 資料庫',
+      files: '全部專案檔案集中中心',
+      database: '資料庫 & 雲端備份',
     };
     document.getElementById('pageTitle').textContent = allMode ? (ALL_TITLES[view] || meta.title) : meta.title;
     document.getElementById('pageSubtitle').textContent = allMode
@@ -209,7 +228,7 @@
     const btnMobFiles = document.getElementById('btnMobileFiles');
     if (btnMobFiles) {
       btnMobFiles.addEventListener('click', () => {
-        store.setView('database');
+        store.setView('files');
         closeMobileSidebar();
       });
     }

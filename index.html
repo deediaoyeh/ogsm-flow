@@ -99,6 +99,11 @@
           <span class="nav-label">檢核工具</span>
           <span class="nav-badge muted" id="badgeChecklist" hidden>0</span>
         </button>
+        <button class="nav-item" data-view="files">
+          <span class="nav-icon" aria-hidden="true">📁</span>
+          <span class="nav-label">專案檔案庫</span>
+          <span class="nav-badge" id="badgeFiles" hidden>0</span>
+        </button>
       </nav>
 
       <!-- 底部輕量入口：進度摘要 + 資料庫與備份 -->
@@ -116,7 +121,7 @@
 
         <button class="nav-item subtle" data-view="database" id="navDatabase">
           <span class="nav-icon" aria-hidden="true">⛁</span>
-          <span class="nav-label">資料庫 &amp; 檔案庫</span>
+          <span class="nav-label">資料庫 &amp; 雲端備份</span>
         </button>
 
         <div class="auth-sidebar-box">
@@ -144,7 +149,7 @@
             <span class="search-icon" aria-hidden="true">⌕</span>
             <input type="search" id="globalSearch" placeholder="搜尋任務、待辦或 Drive 檔案..." aria-label="搜尋" />
           </div>
-          <button class="btn-icon mobile-only" id="btnMobileFiles" title="本專案檔案庫與備份" aria-label="檔案庫">⛁</button>
+          <button class="btn-icon mobile-only" id="btnMobileFiles" title="本專案檔案庫" aria-label="專案檔案庫">📁</button>
           <button class="btn btn-primary" id="btnQuickAction">＋ 新增行動 M</button>
         </div>
       </header>
@@ -227,6 +232,7 @@
   <script src="view-todo.js"></script>
   <script src="view-logs.js"></script>
   <script src="view-audit.js"></script>
+  <script src="view-files.js"></script>
   <script src="view-database.js"></script>
   <script src="app.js"></script>
 </body>

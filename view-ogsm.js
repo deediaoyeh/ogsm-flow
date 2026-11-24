@@ -305,6 +305,9 @@
             <span>週期：${esc(project.period || '未設定')}</span>
             <span>目標 G：${summary.goalCount} 項</span>
             <span>行動 M：${summary.measureCount} 項</span>
+            <button type="button" class="pill blue" id="btnJumpProjectFiles" style="border:none;cursor:pointer;">
+              📁 專案檔案庫 (${OGSM.views.files ? OGSM.views.files.collectProjectFiles(store).length : projectRootFiles.length}) →
+            </button>
             ${
               projectRootFiles.length
                 ? `<span class="row-gap-xs" style="display:inline-flex;">${projectRootFiles.map((f) => store.renderDriveChip(f)).join('')}</span>`
@@ -346,6 +349,9 @@
     // 綁定事件
     const btnDeleteProjectOgsm = container.querySelector('#btnDeleteProjectOgsm');
     if (btnDeleteProjectOgsm) btnDeleteProjectOgsm.addEventListener('click', () => OGSM.modals.openDeleteProjectModal(project));
+
+    const btnJumpProjFiles = container.querySelector('#btnJumpProjectFiles');
+    if (btnJumpProjFiles) btnJumpProjFiles.addEventListener('click', () => store.setView('files'));
 
     const btnEditProject = container.querySelector('#btnEditProject');
     if (btnEditProject) btnEditProject.addEventListener('click', () => OGSM.modals.openProjectModal(project));

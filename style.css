@@ -3114,7 +3114,8 @@ button {
     min-height: 40px;
   }
 
-  #fileMeasureFilterSelect {
+  #fileMeasureFilterSelect,
+  #hubSourceFilter {
     width: 100% !important;
     min-width: 0 !important;
   }
