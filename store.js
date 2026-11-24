@@ -23,6 +23,7 @@
     calendarYear: new Date().getFullYear(),
     calendarMonth: new Date().getMonth(), // 0-11
     calendarSelectedDate: OGSM.db.formatDate(new Date()),
+    mobileLogPane: 'list', // 'list' | 'editor'（手機直式分頁）
     activeDrawerMeasureId: null,
     data: {
       projects: [],
@@ -35,6 +36,7 @@
       reviews: [],
       logs: [],
       events: [],
+      activities: [],
     },
   };
 
@@ -269,6 +271,14 @@
       .sort((a, b) => `${a.date || ''} ${a.time || ''}`.localeCompare(`${b.date || ''} ${b.time || ''}`));
   }
 
+  function projectActivities(projectIdOverride) {
+    const all = isAllMode() && !projectIdOverride;
+    const pid = projectIdOverride || state.currentProjectId;
+    return (state.data.activities || [])
+      .filter((a) => (all ? true : a.projectId === pid))
+      .sort((a, b) => `${b.date || ''} ${b.time || ''} ${b.createdAt || ''}`.localeCompare(`${a.date || ''} ${a.time || ''} ${a.createdAt || ''}`));
+  }
+
   function goalRate(goal) {
     const target = Number(goal.targetValue);
     const current = Number(goal.currentValue);
@@ -329,29 +339,190 @@
     }
   }
 
+  function nowDateTime() {
+    const d = new Date();
+    return {
+      date: OGSM.db.formatDate(d),
+      time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+      iso: d.toISOString(),
+    };
+  }
+
+  function describeMutation(storeName, prev, next, mode) {
+    const isCreate = mode === 'create';
+    const isDelete = mode === 'delete';
+    const rec = isDelete ? prev : next;
+    if (!rec) return null;
+
+    if (storeName === 'projects') {
+      if (isCreate) return { badge: '建立專案', badgeCls: 'blue', title: rec.name, detail: rec.objective || '', entityId: rec.id };
+      if (isDelete) return null;
+      const changes = [];
+      if (prev && prev.name !== rec.name) changes.push(`名稱改為「${rec.name}」`);
+      if (prev && prev.objective !== rec.objective) changes.push('更新目的 O');
+      if (prev && prev.period !== rec.period) changes.push(`週期：${rec.period || '未設'}`);
+      return { badge: '更新專案', badgeCls: 'blue', title: rec.name, detail: changes.join(' · ') || '編輯專案資訊', entityId: rec.id };
+    }
+
+    if (storeName === 'goals') {
+      if (isCreate) return { badge: '新增目標 G', badgeCls: 'green', title: rec.title, detail: rec.metricName ? `指標：${rec.metricName} (目標 ${rec.targetValue}${rec.unit || ''})` : '', entityId: rec.id };
+      if (isDelete) return { badge: '刪除目標 G', badgeCls: 'red', title: rec.title, detail: '', entityId: rec.id };
+      const changes = [];
+      if (prev && Number(prev.currentValue) !== Number(rec.currentValue)) {
+        changes.push(`達成數值 ${prev.currentValue} → ${rec.currentValue} ${rec.unit || ''}`);
+      }
+      if (prev && Number(prev.targetValue) !== Number(rec.targetValue)) {
+        changes.push(`目標值改為 ${rec.targetValue}${rec.unit || ''}`);
+      }
+      if (prev && prev.title !== rec.title) changes.push('修改目標名稱');
+      return { badge: '更新目標 G', badgeCls: 'green', title: rec.title, detail: changes.join(' · ') || '調整目標設定', entityId: rec.id };
+    }
+
+    if (storeName === 'strategies') {
+      if (isCreate) return { badge: '新增策略 S', badgeCls: 'blue', title: rec.title, detail: rec.description || '', entityId: rec.id };
+      if (isDelete) return { badge: '刪除策略 S', badgeCls: 'red', title: rec.title, detail: '', entityId: rec.id };
+      return { badge: '更新策略 S', badgeCls: 'blue', title: rec.title, detail: rec.description || '編輯策略內容', entityId: rec.id };
+    }
+
+    if (storeName === 'measures') {
+      if (isCreate) return { badge: '新增行動 M', badgeCls: 'amber', title: rec.title, detail: rec.startDate ? `排程：${shortDate(rec.startDate)} – ${shortDate(rec.endDate)}` : '', entityId: rec.id };
+      if (isDelete) return { badge: '刪除行動 M', badgeCls: 'red', title: rec.title, detail: '', entityId: rec.id };
+      const changes = [];
+      if (prev && Number(prev.progress) !== Number(rec.progress)) {
+        changes.push(`進度 ${prev.progress || 0}% → ${rec.progress || 0}%`);
+      }
+      if (prev && (prev.startDate !== rec.startDate || prev.endDate !== rec.endDate)) {
+        changes.push(`排程改為 ${shortDate(rec.startDate)} – ${shortDate(rec.endDate)}`);
+      }
+      if (prev && prev.title !== rec.title) changes.push('修改名稱');
+      return {
+        badge: Number(rec.progress) >= 100 && (!prev || Number(prev.progress) < 100) ? '完成行動 M ✓' : '更新行動 M',
+        badgeCls: Number(rec.progress) >= 100 ? 'green' : 'amber',
+        title: rec.title,
+        detail: changes.join(' · ') || '更新行動詳情',
+        entityId: rec.id,
+      };
+    }
+
+    if (storeName === 'todos') {
+      if (isCreate) return { badge: '新增待辦', badgeCls: 'green', title: rec.title, detail: rec.dueDate ? `到期：${shortDate(rec.dueDate)}` : '', entityId: rec.id };
+      if (isDelete) return { badge: '刪除待辦', badgeCls: 'red', title: rec.title, detail: '', entityId: rec.id };
+      if (prev && prev.completed !== rec.completed) {
+        return {
+          badge: rec.completed ? '完成待辦 ✓' : '重開待辦',
+          badgeCls: rec.completed ? 'green' : 'amber',
+          title: rec.title,
+          detail: '',
+          entityId: rec.id,
+        };
+      }
+      return { badge: '更新待辦', badgeCls: '', title: rec.title, detail: '', entityId: rec.id };
+    }
+
+    if (storeName === 'checklists') {
+      if (isCreate) return { badge: '新增檢核項', badgeCls: 'amber', title: rec.text, detail: '', entityId: rec.measureId || rec.id };
+      if (isDelete) return { badge: '刪除檢核項', badgeCls: 'red', title: rec.text, detail: '', entityId: rec.measureId || rec.id };
+      if (prev && prev.checked !== rec.checked) {
+        return {
+          badge: rec.checked ? '通過檢核 ✓' : '取消檢核',
+          badgeCls: rec.checked ? 'green' : 'amber',
+          title: rec.text,
+          detail: '',
+          entityId: rec.measureId || rec.id,
+        };
+      }
+      return { badge: '更新檢核項', badgeCls: '', title: rec.text, detail: '', entityId: rec.measureId || rec.id };
+    }
+
+    if (storeName === 'files') {
+      const meta = OGSM.db.driveTypeMeta(rec.driveType);
+      if (isCreate) return { badge: `新增 ${meta.label}`, badgeCls: 'blue', title: rec.name, detail: rec.note || 'Google Drive 檔案', entityId: rec.url || rec.id };
+      if (isDelete) return { badge: '移除檔案連結', badgeCls: 'red', title: rec.name, detail: '', entityId: rec.id };
+      return { badge: '更新檔案連結', badgeCls: '', title: rec.name, detail: rec.note || '', entityId: rec.url || rec.id };
+    }
+
+    if (storeName === 'reviews') {
+      const label = rec.periodType === 'monthly' ? '月覆盤' : '週覆盤';
+      if (isCreate) return { badge: `建立${label}`, badgeCls: 'amber', title: rec.periodLabel, detail: `G ${rec.snapshotGoalRate || 0}% · M ${rec.snapshotMeasureRate || 0}% · 檢核 ${rec.snapshotChecklistRate || 0}%`, entityId: rec.id };
+      if (isDelete) return { badge: `刪除${label}`, badgeCls: 'red', title: rec.periodLabel, detail: '', entityId: rec.id };
+      return { badge: `更新${label}`, badgeCls: 'amber', title: rec.periodLabel, detail: '編輯覆盤內容', entityId: rec.id };
+    }
+
+    if (storeName === 'events') {
+      if (isCreate) return { badge: '新增行程', badgeCls: 'blue', title: rec.title, detail: `${rec.date}${rec.time ? ' ' + rec.time : ''}`, entityId: rec.date || rec.id };
+      if (isDelete) return { badge: '刪除行程', badgeCls: 'red', title: rec.title, detail: rec.date || '', entityId: rec.date || rec.id };
+      return { badge: '更新行程', badgeCls: 'blue', title: rec.title, detail: `${rec.date}${rec.time ? ' ' + rec.time : ''}`, entityId: rec.date || rec.id };
+    }
+
+    return null;
+  }
+
+  async function appendProjectActivity(storeName, prev, next, mode) {
+    if (storeName === 'activities' || storeName === 'logs') return;
+    const desc = describeMutation(storeName, prev, next, mode);
+    if (!desc) return;
+    const rec = mode === 'delete' ? prev : next;
+    const pid = storeName === 'projects' ? rec.id : rec.projectId;
+    if (!pid) return;
+
+    const dt = nowDateTime();
+    const act = {
+      id: OGSM.db.uid('act'),
+      projectId: pid,
+      date: dt.date,
+      time: dt.time,
+      action: mode,
+      entityType: storeName,
+      entityId: desc.entityId || rec.id,
+      badge: desc.badge,
+      badgeCls: desc.badgeCls || '',
+      title: desc.title || '',
+      detail: desc.detail || '',
+      createdAt: dt.iso,
+      updatedAt: dt.iso,
+    };
+    await OGSM.db.put('activities', act);
+    if (!Array.isArray(state.data.activities)) state.data.activities = [];
+    state.data.activities.push(act);
+  }
+
   /* CRUD 操作封裝 */
-  async function saveRecord(storeName, record) {
+  async function saveRecord(storeName, record, options) {
+    const opts = options || {};
     const now = new Date().toISOString();
-    const stamped = { ...record, createdAt: record.createdAt || now, updatedAt: now };
+    const arr = state.data[storeName] || (state.data[storeName] = []);
+    const idx = arr.findIndex((item) => item.id === record.id);
+    const prev = idx >= 0 ? { ...arr[idx] } : null;
+    const stamped = { ...record, createdAt: record.createdAt || (prev && prev.createdAt) || now, updatedAt: now };
+
     await OGSM.db.put(storeName, stamped);
-    const arr = state.data[storeName];
-    const idx = arr.findIndex((item) => item.id === stamped.id);
     if (idx >= 0) arr[idx] = stamped;
     else arr.push(stamped);
+
+    if (!opts.silentActivity) {
+      await appendProjectActivity(storeName, prev, stamped, prev ? 'update' : 'create');
+    }
     notify();
     triggerCloudSync();
     return stamped;
   }
 
-  async function deleteRecord(storeName, id) {
+  async function deleteRecord(storeName, id, options) {
+    const opts = options || {};
+    const arr = state.data[storeName] || [];
+    const prev = arr.find((item) => item.id === id) || null;
     await OGSM.db.remove(storeName, id);
     recordDeletedId(id);
-    state.data[storeName] = state.data[storeName].filter((item) => item.id !== id);
+    state.data[storeName] = arr.filter((item) => item.id !== id);
+    if (!opts.silentActivity && prev) {
+      await appendProjectActivity(storeName, prev, null, 'delete');
+    }
     notify();
     triggerCloudSync();
   }
 
   async function deleteMeasureCascade(measureId) {
+    const targetM = (state.data.measures || []).find((m) => m.id === measureId) || null;
     const relatedChecks = state.data.checklists.filter((c) => c.measureId === measureId);
     const relatedFiles = state.data.files.filter((f) => f.measureId === measureId);
     const relatedTodos = state.data.todos.filter((t) => t.measureId === measureId);
@@ -376,6 +547,9 @@
     state.data.checklists = state.data.checklists.filter((c) => c.measureId !== measureId);
     state.data.files = state.data.files.filter((f) => f.measureId !== measureId);
     state.data.measures = state.data.measures.filter((m) => m.id !== measureId);
+    if (targetM) {
+      await appendProjectActivity('measures', targetM, null, 'delete');
+    }
     if (state.activeDrawerMeasureId === measureId) state.activeDrawerMeasureId = null;
     notify();
     triggerCloudSync();
@@ -423,7 +597,7 @@
       state.data.files = state.data.files.filter((f) => f.projectId !== projectId);
     }
 
-    const stores = ['goals', 'strategies', 'measures', 'todos', 'checklists', 'reviews', 'logs', 'events'];
+    const stores = ['goals', 'strategies', 'measures', 'todos', 'checklists', 'reviews', 'logs', 'events', 'activities'];
     for (const s of stores) {
       const items = state.data[s].filter((r) => r.projectId === projectId);
       for (const item of items) {
@@ -501,6 +675,7 @@
     projectReviews,
     projectLogs,
     projectEvents,
+    projectActivities,
     goalRate,
     measureStatus,
     projectSummary,

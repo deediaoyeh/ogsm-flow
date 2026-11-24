@@ -118,36 +118,78 @@
     return null;
   }
 
-  // 自動彙整目前專案各時間點「添加了什麼」的系統軌跡事件
+  // 彙整專案的所有自動變動紀錄（優先使用真實 activities 變動軌跡，並向後相容舊版既有資料）
   function buildProjectActivityEvents(store) {
     const items = [];
-    const proj = store.currentProject();
-    if (proj && proj.createdAt) {
-      const dt = isoToDateAndTime(proj.createdAt);
-      items.push({
-        kind: 'activity',
-        id: `act_proj_${proj.id}`,
-        date: dt.date,
-        time: dt.time,
-        sortKey: `${dt.date} ${dt.time || '00:00'} ${proj.createdAt}`,
-        badge: '建立專案',
-        badgeCls: 'blue',
-        title: proj.name,
-        sub: proj.objective || '',
-        actionType: 'view',
-        actionTarget: 'ogsm',
-      });
+    const seenCreates = new Set();
+
+    function mapEntityAction(entityType, entityId) {
+      if (entityType === 'measures') return { actionType: 'measure', actionTarget: entityId };
+      if (entityType === 'files' && /^https?:\/\//i.test(String(entityId || ''))) {
+        return { actionType: 'url', actionTarget: entityId };
+      }
+      if (entityType === 'files') return { actionType: 'view', actionTarget: 'database' };
+      if (entityType === 'todos') return { actionType: 'view', actionTarget: 'todo' };
+      if (entityType === 'checklists' || entityType === 'reviews') return { actionType: 'view', actionTarget: 'audit' };
+      if (entityType === 'events') return { actionType: 'calendar', actionTarget: entityId };
+      return { actionType: 'view', actionTarget: 'ogsm' };
     }
 
+    // 1. 讀取所有即時記錄的專案變動（新增、更新、進度調整、完成、刪除）
+    store.projectActivities().forEach((act) => {
+      if (act.action === 'create') {
+        seenCreates.add(`${act.entityType}:${act.entityId}`);
+      }
+      const nav = mapEntityAction(act.entityType, act.entityId);
+      items.push({
+        kind: 'activity',
+        id: act.id,
+        projectId: act.projectId,
+        date: act.date,
+        time: act.time || '',
+        sortKey: `${act.date || ''} ${act.time || '00:00'} ${act.createdAt || ''}`,
+        badge: act.badge || '專案變動',
+        badgeCls: act.badgeCls || '',
+        title: act.title || '',
+        sub: act.detail || '',
+        actionType: nav.actionType,
+        actionTarget: nav.actionTarget,
+      });
+    });
+
+    // 2. 補齊舊版升級前已存在的建立紀錄（若尚無對應 create activity）
+    const projs = store.isAllMode() ? store.state.data.projects : [store.currentProject()].filter(Boolean);
+    projs.forEach((proj) => {
+      if (proj && proj.createdAt && !seenCreates.has(`projects:${proj.id}`)) {
+        const dt = isoToDateAndTime(proj.createdAt);
+        items.push({
+          kind: 'activity',
+          id: `legacy_proj_${proj.id}`,
+          projectId: proj.id,
+          date: dt.date,
+          time: dt.time,
+          sortKey: `${dt.date} ${dt.time || '00:00'} ${proj.createdAt}`,
+          badge: '建立專案',
+          badgeCls: 'blue',
+          title: proj.name,
+          sub: proj.objective || '',
+          actionType: 'view',
+          actionTarget: 'ogsm',
+        });
+      }
+    });
+
     store.projectGoals().forEach((g) => {
+      if (seenCreates.has(`goals:${g.id}`)) return;
       const dt = isoToDateAndTime(g.createdAt, g.deadline);
       items.push({
         kind: 'activity',
-        id: `act_g_${g.id}`,
+        id: `legacy_g_${g.id}`,
+        projectId: g.projectId,
         date: dt.date,
         time: dt.time,
         sortKey: `${dt.date} ${dt.time || '00:00'} ${g.createdAt || ''}`,
-        badge: '添加目標 G',
+        badge: '新增目標 G',
         badgeCls: 'green',
         title: g.title,
         sub: g.metricName ? `指標：${g.metricName} (${g.currentValue}/${g.targetValue} ${g.unit || ''})` : '',
@@ -157,14 +199,16 @@
     });
 
     store.projectMeasures().forEach((m) => {
+      if (seenCreates.has(`measures:${m.id}`)) return;
       const dt = isoToDateAndTime(m.createdAt, m.startDate);
       items.push({
         kind: 'activity',
-        id: `act_m_${m.id}`,
+        id: `legacy_m_${m.id}`,
+        projectId: m.projectId,
         date: dt.date,
         time: dt.time,
         sortKey: `${dt.date} ${dt.time || '00:00'} ${m.createdAt || ''}`,
-        badge: '添加行動 M',
+        badge: '新增行動 M',
         badgeCls: 'amber',
         title: m.title,
         sub: m.startDate ? `排程：${store.shortDate(m.startDate)} – ${store.shortDate(m.endDate)}` : '',
@@ -174,15 +218,17 @@
     });
 
     store.projectFiles().forEach((f) => {
+      if (seenCreates.has(`files:${f.url}`) || seenCreates.has(`files:${f.id}`)) return;
       const dt = isoToDateAndTime(f.createdAt);
       const meta = OGSM.db.driveTypeMeta(f.driveType);
       items.push({
         kind: 'activity',
-        id: `act_f_${f.id}`,
+        id: `legacy_f_${f.id}`,
+        projectId: f.projectId,
         date: dt.date,
         time: dt.time,
         sortKey: `${dt.date} ${dt.time || '00:00'} ${f.createdAt || ''}`,
-        badge: `添加 ${meta.label}`,
+        badge: `新增 ${meta.label}`,
         badgeCls: '',
         title: f.name,
         sub: f.note || 'Google Drive 檔案連結',
@@ -192,10 +238,12 @@
     });
 
     store.projectReviews().forEach((r) => {
+      if (seenCreates.has(`reviews:${r.id}`)) return;
       const dt = isoToDateAndTime(r.createdAt, r.reviewDate);
       items.push({
         kind: 'activity',
-        id: `act_r_${r.id}`,
+        id: `legacy_r_${r.id}`,
+        projectId: r.projectId,
         date: r.reviewDate || dt.date,
         time: dt.time,
         sortKey: `${r.reviewDate || dt.date} ${dt.time || '23:59'} ${r.createdAt || ''}`,
@@ -205,22 +253,6 @@
         sub: `G ${r.snapshotGoalRate || 0}% · M ${r.snapshotMeasureRate || 0}% · 檢核 ${r.snapshotChecklistRate || 0}%`,
         actionType: 'view',
         actionTarget: 'audit',
-      });
-    });
-
-    store.projectEvents().forEach((ev) => {
-      items.push({
-        kind: 'activity',
-        id: `act_ev_${ev.id}`,
-        date: ev.date,
-        time: ev.time || '',
-        sortKey: `${ev.date || ''} ${ev.time || '00:00'} ${ev.createdAt || ''}`,
-        badge: '行事曆行程',
-        badgeCls: 'blue',
-        title: ev.title,
-        sub: ev.note || '',
-        actionType: 'calendar',
-        actionTarget: ev.date,
       });
     });
 
@@ -252,6 +284,7 @@
     };
     isSourceMode = false;
     store.state.activeLogId = newLog.id;
+    store.state.mobileLogPane = 'editor';
     if (store.state.timelineFilter === 'activity') {
       store.state.timelineFilter = 'all';
     }
@@ -262,6 +295,7 @@
   function openLogById(logId) {
     const store = OGSM.store;
     store.state.activeLogId = logId;
+    store.state.mobileLogPane = 'editor';
     if (store.state.timelineFilter === 'activity') {
       store.state.timelineFilter = 'all';
     }
@@ -384,10 +418,10 @@
               `;
             }
 
-            // 系統自動記錄的「添加了什麼」節點
+            // 系統自動記錄的專案變動節點
             return `
               <div class="tl-node activity-node">
-                <span class="tl-dot muted"></span>
+                <span class="tl-dot ${item.badgeCls || 'muted'}"></span>
                 <div class="tl-activity-card"
                      data-act-type="${esc(item.actionType)}"
                      data-act-target="${esc(item.actionTarget || '')}"
@@ -396,6 +430,7 @@
                     <span class="tl-datetime">${esc(item.date)}${item.time ? ` · ${esc(item.time)}` : ''}</span>
                     <span class="pill ${item.badgeCls}" style="font-size:10.5px;">${esc(item.badge)}</span>
                   </div>
+                  ${allMode && item.projectId ? `<div style="margin-bottom:2px;"><span class="proj-mini-tag">${esc(store.projectNameById(item.projectId))}</span></div>` : ''}
                   <div class="tl-activity-title">${esc(item.title)}</div>
                   ${item.sub ? `<div class="muted-text" style="font-size:11.5px;">${esc(item.sub)}</div>` : ''}
                 </div>
@@ -448,16 +483,22 @@
 
       editorHtml = `
         <div class="log-editor-card">
+          <div class="mobile-editor-backbar">
+            <button type="button" class="btn btn-sm" id="btnMobileBackTimeline">← 返回時間軸</button>
+            <button type="button" class="btn btn-sm btn-primary" id="btnMobileTopSave">儲存紀錄</button>
+          </div>
           <div class="log-meta-bar">
-            <div class="form-field" style="width:146px;flex-shrink:0;">
-              <label for="logDateInput">日期</label>
-              <input type="date" id="logDateInput" class="input" value="${esc(activeLog.date || store.todayStr())}" required />
+            <div class="log-datetime-pair">
+              <div class="form-field">
+                <label for="logDateInput">日期</label>
+                <input type="date" id="logDateInput" class="input" value="${esc(activeLog.date || store.todayStr())}" required />
+              </div>
+              <div class="form-field">
+                <label for="logTimeInput">時間點</label>
+                <input type="time" id="logTimeInput" class="input" value="${esc(activeLog.time || '')}" />
+              </div>
             </div>
-            <div class="form-field" style="width:112px;flex-shrink:0;">
-              <label for="logTimeInput">時間點</label>
-              <input type="time" id="logTimeInput" class="input" value="${esc(activeLog.time || '')}" />
-            </div>
-            <div class="form-field" style="width:142px;flex-shrink:0;">
+            <div class="form-field log-type-field">
               <label for="logTypeSelect">節點類型</label>
               <select id="logTypeSelect" class="select">
                 ${Object.entries(LOG_TYPES)
@@ -468,9 +509,9 @@
                   .join('')}
               </select>
             </div>
-            <div class="form-field" style="flex:1;min-width:180px;">
+            <div class="form-field log-title-field">
               <label for="logTitleInput">今日主題</label>
-              <input type="text" id="logTitleInput" class="input" value="${esc(activeLog.title || '')}" placeholder="輸入這時間點想了什麼、完成了什麼（會同步顯示於關聯項目）..." />
+              <input type="text" id="logTitleInput" class="input" value="${esc(activeLog.title || '')}" placeholder="輸入這時間點想了什麼、完成了什麼..." />
             </div>
           </div>
 
@@ -619,14 +660,22 @@
       </div>`;
     }
 
+    const mobilePane = store.state.mobileLogPane || 'list';
+
     container.innerHTML = `
-      <div class="logs-layout timeline-layout">
+      <!-- 手機直式專屬切換列：時間軸列表 ↔ HTML 編輯器 -->
+      <div class="mobile-pane-switcher">
+        <button type="button" class="seg-tab ${mobilePane === 'list' ? 'active' : ''}" data-mobile-pane="list">◷ 時間軸 (${timelineItems.length})</button>
+        <button type="button" class="seg-tab ${mobilePane === 'editor' ? 'active' : ''}" data-mobile-pane="editor">✎ HTML 編輯器</button>
+      </div>
+
+      <div class="logs-layout timeline-layout mobile-pane-${mobilePane}">
         <!-- 左欄：專案執行垂直時間軸 -->
         <aside class="logs-sidebar timeline-sidebar">
           <div class="section-header" style="margin-bottom:10px;">
             <div>
               <h2 class="section-title">專案流程時間軸</h2>
-              <div class="muted-text" style="font-size:11.5px;">追蹤每個時間點的想法與新增紀錄</div>
+              <div class="muted-text" style="font-size:11.5px;">手動想法日誌 ＋ 所有專案自動變動紀錄</div>
             </div>
             <button class="btn btn-primary btn-sm" id="btnNewLog">＋ 新增</button>
           </div>
@@ -634,8 +683,8 @@
           <div class="timeline-controls">
             <div class="seg-tabs" style="flex:1;">
               <button class="seg-tab ${filter === 'all' ? 'active' : ''}" data-tl-filter="all">全部</button>
-              <button class="seg-tab ${filter === 'logs' ? 'active' : ''}" data-tl-filter="logs">想法日誌 (${filteredLogs.length})</button>
-              <button class="seg-tab ${filter === 'activity' ? 'active' : ''}" data-tl-filter="activity">添加軌跡</button>
+              <button class="seg-tab ${filter === 'logs' ? 'active' : ''}" data-tl-filter="logs">手動 (${filteredLogs.length})</button>
+              <button class="seg-tab ${filter === 'activity' ? 'active' : ''}" data-tl-filter="activity">變動 (${activityItems.length})</button>
             </div>
             <button type="button" class="btn btn-sm" id="btnToggleTlOrder" title="切換時間排序">
               ${order === 'desc' ? '↓ 最新' : '↑ 最早'}
@@ -673,10 +722,27 @@
       });
     }
 
-    // 切換選取日誌節點
+    // 手機直式切換：時間軸列表 ↔ HTML 編輯器
+    container.querySelectorAll('[data-mobile-pane]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        store.state.mobileLogPane = btn.dataset.mobilePane;
+        store.notify();
+      });
+    });
+
+    const btnBackTl = container.querySelector('#btnMobileBackTimeline');
+    if (btnBackTl) {
+      btnBackTl.addEventListener('click', () => {
+        store.state.mobileLogPane = 'list';
+        store.notify();
+      });
+    }
+
+    // 切換選取日誌節點（手機直式點選後自動進入 HTML 編輯器）
     container.querySelectorAll('[data-select-log]').forEach((btn) => {
       btn.addEventListener('click', () => {
         store.state.activeLogId = btn.dataset.selectLog;
+        store.state.mobileLogPane = 'editor';
         store.notify();
       });
     });
@@ -898,6 +964,8 @@
     }
 
     container.querySelector('#btnSaveLog').addEventListener('click', saveActiveLog);
+    const btnMobTopSave = container.querySelector('#btnMobileTopSave');
+    if (btnMobTopSave) btnMobTopSave.addEventListener('click', saveActiveLog);
 
     const onKeySave = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {

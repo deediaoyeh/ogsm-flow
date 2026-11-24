@@ -6,7 +6,7 @@
 
   const OGSM = (global.OGSM = global.OGSM || {});
   const DB_NAME = 'OGSMFlowDB';
-  const DB_VERSION = 3;
+  const DB_VERSION = 4;
   const STORES = [
     'projects',
     'goals',
@@ -18,6 +18,7 @@
     'reviews',
     'logs',
     'events',
+    'activities',
   ];
 
   let dbInstance = null;

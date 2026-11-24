@@ -851,13 +851,18 @@ button {
 }
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
+}
+.form-row-3 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px;
 }
 .form-field {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  min-width: 0;
+  max-width: 100%;
 }
 .form-field label {
   font-size: 12px;
@@ -865,6 +870,8 @@ button {
 }
 .input, .textarea, .select {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1698,6 +1705,31 @@ button {
   align-items: flex-end;
 }
 
+.log-datetime-pair {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.log-datetime-pair .form-field:first-child {
+  width: 146px;
+}
+.log-datetime-pair .form-field:last-child {
+  width: 112px;
+}
+.log-type-field {
+  width: 142px;
+  flex-shrink: 0;
+}
+.log-title-field {
+  flex: 1;
+  min-width: 180px;
+}
+
+.mobile-pane-switcher,
+.mobile-editor-backbar {
+  display: none;
+}
+
 .log-link-chips {
   display: flex;
   flex-wrap: wrap;
@@ -2341,6 +2373,8 @@ button {
   width: 470px;
   max-width: 94vw;
   height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   background: var(--bg-surface);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
@@ -2499,12 +2533,19 @@ button {
 }
 
 @media (max-width: 760px) {
+  html, body, .app-shell, .main-area {
+    max-width: 100vw;
+    overflow-x: clip;
+  }
+
   .mobile-only { display: inline-grid; }
 
   .sidebar {
     position: fixed;
     left: 0;
     top: 0;
+    height: 100vh;
+    height: 100dvh;
     z-index: 35;
     transform: translateX(-100%);
     transition: transform 200ms ease;
@@ -2515,7 +2556,7 @@ button {
     transform: translateX(0);
   }
 
-  /* 手機版固定底部單手導覽列（和紙柔霧感） */
+  /* 手機直式固定底部單手導覽列（和紙柔霧感） */
   .mobile-bottom-nav {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
@@ -2523,7 +2564,7 @@ button {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(252, 251, 248, 0.95);
+    background: rgba(252, 251, 248, 0.96);
     backdrop-filter: blur(12px);
     border-top: 1px solid var(--border);
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
@@ -2564,12 +2605,18 @@ button {
 
   .topbar {
     height: auto;
-    min-height: 58px;
-    padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
-    gap: 10px;
+    min-height: 56px;
+    padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+    gap: 8px;
+  }
+  .topbar-left {
+    gap: 8px;
   }
   .page-title {
-    font-size: 16px;
+    font-size: 15.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .page-subtitle {
     display: none;
@@ -2577,24 +2624,43 @@ button {
   .search-box {
     display: none;
   }
+  .topbar-actions {
+    gap: 6px;
+  }
   .topbar-actions .btn-primary {
-    padding: 7px 11px;
-    font-size: 12.5px;
+    padding: 7px 10px;
+    font-size: 12px;
   }
 
   .view-container {
-    padding: 16px 14px calc(86px + env(safe-area-inset-bottom));
+    padding: 14px 12px calc(90px + env(safe-area-inset-bottom));
+    max-width: 100vw;
   }
 
-  /* 防止 iOS Safari 點擊輸入框時自動縮放畫面 */
+  /* 防止 iOS Safari 點擊輸入框時自動縮放畫面，並嚴格防溢出裁切 */
   .input, .textarea, .select, .select-clean {
     font-size: 16px;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .card {
+    padding: 15px 14px;
+    max-width: 100%;
   }
 
   .objective-banner {
     flex-direction: column;
-    padding: 16px;
+    padding: 15px 14px;
     gap: 14px;
+  }
+  .objective-banner > div:last-child {
+    width: 100%;
+    align-items: flex-start !important;
+  }
+  .objective-banner .row-gap-xs {
+    justify-content: flex-start !important;
+    width: 100%;
   }
   .objective-stats {
     width: 100%;
@@ -2604,7 +2670,7 @@ button {
     text-align: left;
   }
 
-  /* 手機版 OGSM 卡片 */
+  /* 手機直式 OGSM 卡片 */
   .goal-header {
     flex-direction: column;
     align-items: flex-start;
@@ -2650,7 +2716,7 @@ button {
     padding: 4px 8px 6px 10px;
   }
 
-  /* 手機版甘特圖觸控橫滑 */
+  /* 手機直式甘特圖觸控橫滑 */
   .gantt-toolbar {
     gap: 8px;
   }
@@ -2670,18 +2736,22 @@ button {
     -webkit-overflow-scrolling: touch;
   }
   .gantt-left {
-    width: 168px;
-    padding: 7px 10px;
+    width: 158px;
+    padding: 7px 9px;
   }
   .gantt-task-title {
     font-size: 12px;
   }
 
-  /* 手機版快速新增 To-Do */
+  /* 手機直式快速新增 To-Do */
   .quick-add-bar {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 9px;
     padding: 12px;
+  }
+  .quick-add-bar .btn-primary {
+    min-height: 42px;
+    width: 100%;
   }
   .seg-tabs {
     max-width: 100%;
@@ -2693,39 +2763,194 @@ button {
     padding: 6px 10px;
   }
 
-  /* 手機版全寬詳情抽屜與表單 */
+  /* 手機直式：全寬抽屜 + 不裁切儲存與檔案掛載表單 */
   .drawer {
     width: 100vw;
     max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-left: none;
+  }
+  .drawer-header {
+    padding: 12px 14px;
+    flex-shrink: 0;
   }
   .drawer-body {
-    padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
+    padding: 16px 14px calc(36px + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
   }
-  .form-row {
+  .drawer-save-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .drawer-save-bar .btn {
+    width: 100%;
+    min-height: 44px;
+    font-size: 14px;
+  }
+  .drawer-file-url-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .drawer-file-url-row .btn {
+    width: 100%;
+    min-height: 40px;
+  }
+
+  /* 手機直式：彈窗改為底部滿版抽屜，內部可捲動且底部按鈕絕不裁切 */
+  .modal-backdrop {
+    padding: 0;
+    align-items: flex-end;
+    justify-items: stretch;
+  }
+  .modal-card {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    border-radius: 18px 18px 0 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-header {
+    padding: 14px 16px;
+    flex-shrink: 0;
+  }
+  .modal-body {
+    flex: 1;
+    max-height: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px 16px calc(26px + env(safe-area-inset-bottom));
+  }
+  .modal-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .modal-footer .btn {
+    min-height: 42px;
+    flex: 1;
+  }
+  .modal-footer > .row-gap-xs {
+    flex: 1;
+    width: 100%;
+  }
+
+  .form-row,
+  .form-row-3 {
     grid-template-columns: 1fr;
   }
 
-  /* 手機版工作日誌編輯器 */
-  .log-editor-card {
-    padding: 14px;
+  /* 手機直式：時間軸與 HTML 編輯器雙模式專屬切換 */
+  .mobile-pane-switcher {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+    margin-bottom: 12px;
   }
+  .mobile-pane-switcher .seg-tab {
+    text-align: center;
+    padding: 7px 6px;
+    font-size: 13px;
+  }
+  .timeline-layout.mobile-pane-list .logs-main {
+    display: none;
+  }
+  .timeline-layout.mobile-pane-editor .logs-sidebar {
+    display: none;
+  }
+  .timeline-track {
+    max-height: none;
+    overflow-y: visible;
+  }
+  .timeline-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .timeline-controls .seg-tabs {
+    width: 100%;
+  }
+  .timeline-controls #btnToggleTlOrder {
+    width: 100%;
+    min-height: 36px;
+  }
+
+  .mobile-editor-backbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .log-editor-card {
+    padding: 14px 12px;
+    gap: 12px;
+  }
+  .log-datetime-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  .log-datetime-pair .form-field:first-child,
+  .log-datetime-pair .form-field:last-child,
+  .log-type-field,
+  .log-title-field,
   .log-meta-bar .form-field,
   .log-links-bar .form-field {
     width: 100% !important;
+    min-width: 0 !important;
+  }
+  .html-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 7px 8px;
+    gap: 4px;
+  }
+  .html-tool-group {
+    flex-shrink: 0;
+  }
+  .tool-btn {
+    flex-shrink: 0;
+    min-height: 34px;
+    padding: 5px 9px;
+    font-size: 12.5px;
   }
   .html-editor-surface,
   .html-source-editor {
-    min-height: 240px;
+    min-height: 230px;
+    max-height: none;
     font-size: 16px;
+    padding: 13px 14px;
+  }
+  .log-editor-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .log-editor-footer .row-gap-xs {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .log-editor-footer .btn {
+    flex: 1;
+    min-height: 42px;
   }
 
-  /* 手機版月曆緊湊清晰呈現 */
+  /* 手機直式：月曆與檔案庫表格不裁切 */
   .cal-main-card,
   .cal-side-card {
-    padding: 14px;
+    padding: 13px 12px;
   }
   .cal-cell {
-    min-height: 54px;
+    min-height: 52px;
     padding: 4px;
   }
   .cal-cell-items {
@@ -2734,10 +2959,53 @@ button {
   .cal-count-dot {
     display: inline-block;
   }
+  .cal-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .cal-toolbar > .row-gap-xs {
+    flex-wrap: wrap;
+  }
+  .cal-toolbar #btnCalAddEvent {
+    width: 100%;
+    min-height: 40px;
+  }
+
+  #fileMeasureFilterSelect {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .file-table thead {
+    display: none;
+  }
+  .file-table,
+  .file-table tbody,
+  .file-table tr,
+  .file-table td {
+    display: block;
+    width: 100%;
+  }
+  .file-table tr {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .file-table td {
+    border-bottom: none;
+    padding: 3px 0;
+    text-align: left !important;
+  }
+  .file-table td:last-child {
+    margin-top: 6px;
+  }
+
+  .checklist-add-inline .input {
+    min-width: 0;
+    flex: 1;
+  }
 
   .toast-container {
     bottom: calc(74px + env(safe-area-inset-bottom));
-    right: 14px;
-    left: 14px;
+    right: 12px;
+    left: 12px;
   }
 }

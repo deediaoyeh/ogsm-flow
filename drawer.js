@@ -103,7 +103,7 @@
           <input type="checkbox" name="isMilestone" ${m.isMilestone ? 'checked' : ''} />
           <span>在甘特圖上以菱形「里程碑」標記顯示</span>
         </label>
-        <div class="row-between">
+        <div class="row-between drawer-save-bar">
           <span class="muted-text" style="font-size:11.5px;">調整後點擊儲存立即同步甘特圖與 OGSM</span>
           <button type="submit" class="btn btn-primary btn-sm">儲存變更</button>
         </div>
@@ -139,7 +139,7 @@
         </div>
         <form class="form-stack" id="drawerAddFileForm" style="gap:7px;">
           <input type="text" class="input" name="name" placeholder="檔案名稱（例如：專案簡報 v2）" required style="padding:7px 10px;font-size:12.5px;" />
-          <div class="row-gap-xs">
+          <div class="row-gap-xs drawer-file-url-row">
             <input type="url" class="input" name="url" placeholder="貼上 Google Drive 連結 (https://...)" required style="padding:7px 10px;font-size:12.5px;" />
             <button type="submit" class="btn btn-sm">＋ 掛載</button>
           </div>
@@ -572,7 +572,7 @@
               <input type="date" class="input" name="deadline" value="${esc(existing ? existing.deadline : OGSM.db.offsetDate(30))}" />
             </div>
           </div>
-          <div class="form-row" style="grid-template-columns:1fr 1fr 90px;">
+          <div class="form-row form-row-3">
             <div class="form-field">
               <label>目前數值</label>
               <input type="number" step="any" class="input" name="currentValue" value="${existing ? existing.currentValue : 0}" />
