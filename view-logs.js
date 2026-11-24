@@ -797,7 +797,7 @@
         ogsmType,
         ogsmId,
         measureId: ogsmType === 'measure' ? ogsmId : null,
-        contentHtml: sanitizeHtml(rawHtml),
+        contentHtml: OGSM.editor ? OGSM.editor.autoLinkUrls(rawHtml) : sanitizeHtml(rawHtml),
       };
     }
 

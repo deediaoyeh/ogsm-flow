@@ -208,6 +208,7 @@
                             ${checks.length ? `✓ ${doneChecks}/${checks.length}` : '—'}
                           </div>
                         </div>
+                        ${OGSM.editor ? OGSM.editor.renderNoteBlock(m.noteHtml, m.attachments, 'in-measure') : ''}
                         ${renderRelatedLogsRow(measureLogs, '相關日誌')}
                       </div>
                     `;
@@ -219,6 +220,9 @@
               (l) => l.ogsmType === 'strategy' && l.ogsmId === strat.id
             );
 
+            const stratNoteHtml =
+              strat.noteHtml || (strat.description ? `<p>${esc(strat.description)}</p>` : '');
+
             return `
               <div class="strategy-block">
                 <div class="strategy-header">
@@ -226,7 +230,6 @@
                     <span class="letter-badge s">S</span>
                     <div>
                       <div class="strategy-title">${esc(strat.title)}</div>
-                      ${strat.description ? `<div class="muted-text" style="font-size:12px;">${esc(strat.description)}</div>` : ''}
                     </div>
                   </div>
                   <div class="row-gap-xs">
@@ -234,6 +237,7 @@
                     <button class="btn-icon" data-edit-strategy="${esc(strat.id)}" title="編輯策略">✎</button>
                   </div>
                 </div>
+                ${OGSM.editor ? OGSM.editor.renderNoteBlock(stratNoteHtml, strat.attachments, 'in-strategy') : ''}
                 ${renderRelatedLogsRow(stratLogs, '相關日誌')}
                 <div class="measure-rows">${measuresHtml}</div>
               </div>
@@ -276,6 +280,7 @@
                 <button class="btn-icon" data-edit-goal="${esc(goal.id)}" title="編輯目標">✎</button>
               </div>
             </div>
+            ${OGSM.editor ? OGSM.editor.renderNoteBlock(goal.noteHtml, goal.attachments, 'in-goal') : ''}
             ${goalLogs.length ? `<div style="padding:10px 18px 0;">${renderRelatedLogsRow(goalLogs, '相關日誌')}</div>` : ''}
             <div class="strategy-list">
               ${
@@ -295,6 +300,7 @@
         <div style="flex:1;min-width:0;">
           <div class="objective-tag">O · OBJECTIVE 專案目的</div>
           <p class="objective-text">${esc(project.objective || '尚未填寫專案目的 O')}</p>
+          ${OGSM.editor ? OGSM.editor.renderNoteBlock(project.noteHtml, project.attachments, 'in-objective') : ''}
           <div class="objective-meta">
             <span>週期：${esc(project.period || '未設定')}</span>
             <span>目標 G：${summary.goalCount} 項</span>

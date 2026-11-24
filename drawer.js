@@ -103,6 +103,10 @@
           <input type="checkbox" name="isMilestone" ${m.isMilestone ? 'checked' : ''} />
           <span>在甘特圖上以菱形「里程碑」標記顯示</span>
         </label>
+        <div class="form-field">
+          <label>行動備註（HTML 編輯器・支援網址自動轉連結與附檔）</label>
+          <div id="drawerMeasureNoteHost"></div>
+        </div>
         <div class="row-between drawer-save-bar">
           <span class="muted-text" style="font-size:11.5px;">調整後點擊儲存立即同步甘特圖與 OGSM</span>
           <button type="submit" class="btn btn-primary btn-sm">儲存變更</button>
@@ -229,6 +233,13 @@
       </div>
     `;
 
+    // 掛載行動 M 的 HTML 備註與附檔編輯器
+    const measureNoteEd = OGSM.editor.mount(body.querySelector('#drawerMeasureNoteHost'), {
+      initialHtml: m.noteHtml || '',
+      attachments: m.attachments || [],
+      placeholder: '填寫行動 M 的詳細備註、貼上網址（自動轉可點擊連結）或加入附檔...',
+    });
+
     // 綁定滑桿即時數字
     const form = body.querySelector('#drawerMeasureForm');
     const progInput = form.querySelector('input[name="progress"]');
@@ -256,6 +267,8 @@
         endDate,
         progress: Number(fd.get('progress')) || 0,
         isMilestone: form.querySelector('input[name="isMilestone"]').checked,
+        noteHtml: measureNoteEd.getHtml(),
+        attachments: measureNoteEd.getAttachments(),
       });
       store.toast('已儲存行動項目');
     });
@@ -394,6 +407,10 @@
             <label>專案週期</label>
             <input type="text" class="input" name="period" value="${esc(existing ? existing.period : '')}" placeholder="例如：2026-11 ～ 2027-01" />
           </div>
+          <div class="form-field">
+            <label>目的 O 備註（HTML 編輯器・支援網址自動轉連結與附檔）</label>
+            <div id="modalProjectNoteHost"></div>
+          </div>
           <div class="modal-footer" style="justify-content:space-between;">
             ${
               isEdit
@@ -408,6 +425,11 @@
         </form>
       `,
       (body) => {
+        const noteEd = OGSM.editor.mount(body.querySelector('#modalProjectNoteHost'), {
+          initialHtml: existing ? existing.noteHtml || '' : '',
+          attachments: existing ? existing.attachments || [] : [],
+          placeholder: '填寫專案背景、參考網址（貼上即轉可點擊連結）或加入相關附檔...',
+        });
         body.querySelector('[data-close-modal]').addEventListener('click', closeModal);
         const delBtn = body.querySelector('#btnDelProj');
         if (delBtn) {
@@ -420,10 +442,13 @@
           const fd = new FormData(e.target);
           localStorage.removeItem('ogsm_user_deleted_all');
           const record = {
+            ...(existing || {}),
             id: existing ? existing.id : OGSM.db.uid('proj'),
             name: String(fd.get('name')).trim(),
             objective: String(fd.get('objective')).trim(),
             period: String(fd.get('period') || '').trim(),
+            noteHtml: noteEd.getHtml(),
+            attachments: noteEd.getAttachments(),
             createdAt: existing ? existing.createdAt : new Date().toISOString(),
           };
           await store.saveRecord('projects', record);
@@ -586,6 +611,10 @@
               <input type="text" class="input" name="unit" value="${esc(existing ? existing.unit : '%')}" placeholder="份/篇/%" />
             </div>
           </div>
+          <div class="form-field">
+            <label>目標 G 備註（HTML 編輯器・支援網址自動轉連結與附檔）</label>
+            <div id="modalGoalNoteHost"></div>
+          </div>
           <div class="modal-footer" style="justify-content:space-between;">
             ${isEdit ? `<button type="button" class="btn btn-danger btn-sm" id="btnDelGoal">刪除目標</button>` : '<span></span>'}
             <div class="row-gap-xs">
@@ -596,6 +625,11 @@
         </form>
       `,
       (body) => {
+        const noteEd = OGSM.editor.mount(body.querySelector('#modalGoalNoteHost'), {
+          initialHtml: existing ? existing.noteHtml || '' : '',
+          attachments: existing ? existing.attachments || [] : [],
+          placeholder: '填寫目標 G 的衡量說明、參考資料連結或附檔...',
+        });
         body.querySelector('[data-close-modal]').addEventListener('click', closeModal);
         const delBtn = body.querySelector('#btnDelGoal');
         if (delBtn) {
@@ -610,14 +644,17 @@
           e.preventDefault();
           const fd = new FormData(e.target);
           await store.saveRecord('goals', {
+            ...(existing || {}),
             id: existing ? existing.id : OGSM.db.uid('goal'),
-            projectId: store.state.currentProjectId,
+            projectId: existing ? existing.projectId : store.defaultWriteProjectId(),
             title: String(fd.get('title')).trim(),
             metricName: String(fd.get('metricName') || '').trim(),
             currentValue: Number(fd.get('currentValue')) || 0,
             targetValue: Number(fd.get('targetValue')) || 100,
             unit: String(fd.get('unit') || '').trim(),
             deadline: String(fd.get('deadline') || ''),
+            noteHtml: noteEd.getHtml(),
+            attachments: noteEd.getAttachments(),
             order: existing ? existing.order : store.projectGoals().length + 1,
           });
           closeModal();
@@ -652,8 +689,8 @@
             <input type="text" class="input" name="title" value="${esc(existing ? existing.title : '')}" placeholder="例如：聚焦核心功能，兩週完成原型" required />
           </div>
           <div class="form-field">
-            <label>補充說明（選填）</label>
-            <textarea class="textarea" name="description" placeholder="簡短說明這個策略的執行原則...">${esc(existing ? existing.description || '' : '')}</textarea>
+            <label>策略 S 備註（HTML 編輯器・支援網址自動轉連結與附檔）</label>
+            <div id="modalStrategyNoteHost"></div>
           </div>
           <div class="modal-footer" style="justify-content:space-between;">
             ${isEdit ? `<button type="button" class="btn btn-danger btn-sm" id="btnDelStrat">刪除策略</button>` : '<span></span>'}
@@ -665,6 +702,17 @@
         </form>
       `,
       (body) => {
+        const legacyHtml =
+          existing && !existing.noteHtml && existing.description
+            ? `<p>${esc(existing.description)}</p>`
+            : existing
+            ? existing.noteHtml || ''
+            : '';
+        const noteEd = OGSM.editor.mount(body.querySelector('#modalStrategyNoteHost'), {
+          initialHtml: legacyHtml,
+          attachments: existing ? existing.attachments || [] : [],
+          placeholder: '填寫策略執行原則、參考網址或附檔...',
+        });
         body.querySelector('[data-close-modal]').addEventListener('click', closeModal);
         const delBtn = body.querySelector('#btnDelStrat');
         if (delBtn) {
@@ -678,12 +726,17 @@
         body.querySelector('#modalStrategyForm').addEventListener('submit', async (e) => {
           e.preventDefault();
           const fd = new FormData(e.target);
+          const goalId = String(fd.get('goalId'));
+          const parentGoal = goals.find((g) => g.id === goalId);
           await store.saveRecord('strategies', {
+            ...(existing || {}),
             id: existing ? existing.id : OGSM.db.uid('strat'),
-            projectId: store.state.currentProjectId,
-            goalId: String(fd.get('goalId')),
+            projectId: parentGoal ? parentGoal.projectId : store.defaultWriteProjectId(),
+            goalId,
             title: String(fd.get('title')).trim(),
-            description: String(fd.get('description') || '').trim(),
+            description: '',
+            noteHtml: noteEd.getHtml(),
+            attachments: noteEd.getAttachments(),
             order: existing ? existing.order : store.projectStrategies().length + 1,
           });
           closeModal();
@@ -737,8 +790,12 @@
             </div>
           </div>
           <div class="form-field">
-            <label>Google Drive 檔案連結（選填，可稍後再加）</label>
+            <label>Google Drive 檔案連結（選填，將同步加入專案檔案庫）</label>
             <input type="url" class="input" name="driveUrl" placeholder="https://docs.google.com/..." />
+          </div>
+          <div class="form-field">
+            <label>行動 M 備註（HTML 編輯器・支援網址自動轉連結與附檔）</label>
+            <div id="modalMeasureNoteHost"></div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn" data-close-modal>取消</button>
@@ -747,6 +804,11 @@
         </form>
       `,
       (body) => {
+        const noteEd = OGSM.editor.mount(body.querySelector('#modalMeasureNoteHost'), {
+          initialHtml: '',
+          attachments: [],
+          placeholder: '填寫行動 M 的執行細節、參考網址或附檔...',
+        });
         body.querySelector('[data-close-modal]').addEventListener('click', closeModal);
         body.querySelector('#modalMeasureForm').addEventListener('submit', async (e) => {
           e.preventDefault();
@@ -769,6 +831,8 @@
             endDate,
             progress: 0,
             isMilestone: false,
+            noteHtml: noteEd.getHtml(),
+            attachments: noteEd.getAttachments(),
             order: store.projectMeasures().length + 1,
           });
           const driveUrl = String(fd.get('driveUrl') || '').trim();

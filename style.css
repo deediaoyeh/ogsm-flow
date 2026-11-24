@@ -2300,6 +2300,135 @@ button {
 }
 
 /* ============================================================
+   OGSM 共用迷你 HTML 備註編輯器 & 藍圖備註／附檔呈現
+   ============================================================ */
+.mini-html-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.html-toolbar.mini {
+  padding: 5px 7px;
+  gap: 4px;
+}
+
+.html-editor-surface.mini {
+  min-height: 112px;
+  max-height: 240px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.html-source-editor.mini {
+  min-height: 112px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+}
+
+.editor-attach-panel {
+  background: var(--bg-app);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.editor-attach-panel[hidden] {
+  display: none;
+}
+
+.attach-panel-row {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.attach-panel-upload {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.editor-attachments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ogsm-note-display {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.ogsm-note-display.in-objective {
+  margin-top: 10px;
+  padding: 10px 13px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.ogsm-note-display.in-goal {
+  margin: 12px 20px 0;
+  padding: 10px 13px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.ogsm-note-display.in-strategy {
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+}
+.ogsm-note-display.in-measure {
+  margin: 0 0 2px 26px;
+  padding: 8px 11px;
+  background: var(--bg-surface);
+  border-left: 2px solid var(--border-strong);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+}
+
+.ogsm-note-html p {
+  margin: 0.2em 0;
+}
+.ogsm-note-html ul,
+.ogsm-note-html ol {
+  margin: 0.3em 0;
+  padding-left: 20px;
+}
+.ogsm-note-html blockquote {
+  margin: 0.35em 0;
+  padding: 4px 10px;
+  border-left: 2.5px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 4px 4px 0;
+}
+.ogsm-note-html a {
+  color: var(--accent);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.note-attachments-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.attach-chip {
+  max-width: 240px;
+}
+
+/* ============================================================
    ⑤ 資料庫 & Google Drive 檔案庫視圖
    ============================================================ */
 .db-stats-grid {
@@ -2714,6 +2843,20 @@ button {
   }
   .related-logs-strip {
     padding: 4px 8px 6px 10px;
+  }
+  .ogsm-note-display.in-goal {
+    margin: 10px 12px 0;
+  }
+  .ogsm-note-display.in-measure {
+    margin: 0 0 2px 8px;
+  }
+  .html-editor-surface.mini,
+  .html-source-editor.mini {
+    font-size: 16px;
+  }
+  .attach-panel-row .btn {
+    width: 100%;
+    min-height: 40px;
   }
 
   /* 手機直式甘特圖觸控橫滑 */
